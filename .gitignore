@@ -1,0 +1,11 @@
+# build files
+dist/
+coverage/
+.nyc_output/
+*.tgz
+
+# editor files
+*.code-workspace
+
+# other
+node_modules/
