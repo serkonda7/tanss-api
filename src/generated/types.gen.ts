@@ -1112,7 +1112,7 @@ export type TnsPhoneNumberFoundItem = {
    * * A company has the phone number 06154/6006-0
    * * You search for a number 06154/6006-123
    * * The system will try to replace the last 3 chars of the company, so that the number could be found as well,
-   * because 06154/6006-123 is an extension to 06154/6006-0
+   *   because 06154/6006-123 is an extension to 06154/6006-0
    *
    */
   charsLeftOut?: number;

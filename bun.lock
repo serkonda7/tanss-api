@@ -31,17 +31,17 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.5", "", { "os": "win32", "cpu": "x64" }, "sha512-bIBFo+n6MIxdNcVFy5CrurbKiZQiUciK3bt8+O9I4wjFZNTfXLpi+giq47522eXqW5NBc9ulx7dR1SlZKi2J5g=="],
 
-    "@hey-api/codegen-cli": ["@hey-api/codegen-cli@0.0.0-next-20260722143429", "", { "dependencies": { "citty": "0.2.2" } }, "sha512-yeIxg+Ty/DnPksLUBsCStexjr5VexOkSouEJbierKXuk7bE9EIGIdyfUv8EEEn2kVzS6SiUdVFXfSC32lERbeA=="],
+    "@hey-api/codegen-cli": ["@hey-api/codegen-cli@0.0.0-next-20260723124023", "", { "dependencies": { "citty": "0.2.2" } }, "sha512-UqUZPYWVdoKQOH34mO+eUczFS4g5evH8BYnRm4kM0CnrGxrxDthW6ntJVOxU/8ahkyUjamFLW8fHZqvu/tZFvQ=="],
 
-    "@hey-api/codegen-core": ["@hey-api/codegen-core@0.0.0-next-20260722143429", "", { "dependencies": { "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "c12": "3.3.4", "color-support": "1.1.3" } }, "sha512-4IxQpRNeXcBZo2yc/4+uAQz1qoRYPdwidzK2I4ObQ18un2IE9I+c7nkUzrwSkqsWtAOZDzrnQn+VCcQH0I8nkg=="],
+    "@hey-api/codegen-core": ["@hey-api/codegen-core@0.0.0-next-20260723124023", "", { "dependencies": { "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "c12": "3.3.4", "color-support": "1.1.3" } }, "sha512-fcWifP64uvEKps77xUkidWd2pIbcUeDLtMEDYXoV/WCijx5g8E6yA62EMUB2Gnk/g38q0GIPL0ujUg0bUbk/Sg=="],
 
-    "@hey-api/json-schema-ref-parser": ["@hey-api/json-schema-ref-parser@0.0.0-next-20260722143429", "", { "dependencies": { "@jsdevtools/ono": "7.1.3", "@types/json-schema": "7.0.15", "js-yaml": "5.2.0" } }, "sha512-2bmgIF4cUh3rB9My9h8m8iGyIH6mYuFyZ7jF2kJH3HSXpb9nRzri1EfPX4ZGsVYFt32ykTpQDeunmvPxP75CUQ=="],
+    "@hey-api/json-schema-ref-parser": ["@hey-api/json-schema-ref-parser@0.0.0-next-20260723124023", "", { "dependencies": { "@jsdevtools/ono": "7.1.3", "@types/json-schema": "7.0.15", "js-yaml": "5.2.0" } }, "sha512-x26EcY7mpIGtlkyz0Sflj3i2/KHkSA1xPsKfJ8+OSG73tM9F091/BQgEbyMG26DeJXiffpcwU2vPTB/tFDiIUQ=="],
 
-    "@hey-api/openapi-ts": ["@hey-api/openapi-ts@0.0.0-next-20260722143429", "", { "dependencies": { "@hey-api/codegen-cli": "0.0.0-next-20260722143429", "@hey-api/codegen-core": "0.0.0-next-20260722143429", "@hey-api/json-schema-ref-parser": "0.0.0-next-20260722143429", "@hey-api/shared": "0.0.0-next-20260722143429", "@hey-api/spec-types": "0.0.0-next-20260722143429", "@hey-api/types": "0.1.4", "@lukeed/ms": "2.0.2", "ansi-colors": "4.1.3", "color-support": "1.1.3", "get-tsconfig": "4.14.0" }, "bin": { "openapi-ts": "./bin/run.js" } }, "sha512-L9zZYmAOJ3MbViCyx+K59XPJaZKxI/zYJhP9c3zi9iXB//BAg+I5HW/D/zzsXMjVvY2q1r5N/E4tP9frQrEkcg=="],
+    "@hey-api/openapi-ts": ["@hey-api/openapi-ts@0.0.0-next-20260723124023", "", { "dependencies": { "@hey-api/codegen-cli": "0.0.0-next-20260723124023", "@hey-api/codegen-core": "0.0.0-next-20260723124023", "@hey-api/json-schema-ref-parser": "0.0.0-next-20260723124023", "@hey-api/shared": "0.0.0-next-20260723124023", "@hey-api/spec-types": "0.0.0-next-20260723124023", "@hey-api/types": "0.1.4", "@lukeed/ms": "2.0.2", "ansi-colors": "4.1.3", "color-support": "1.1.3", "get-tsconfig": "4.14.0" }, "bin": { "openapi-ts": "./bin/run.js" } }, "sha512-rDLHwwdI8o3e9cHr1EUwE5HZ9LqEEf42vNKml+8dm9rioag7w3bV5j2uyXA98pcHsN01KlmJpWGexwjLd9Eyaw=="],
 
-    "@hey-api/shared": ["@hey-api/shared@0.0.0-next-20260722143429", "", { "dependencies": { "@hey-api/codegen-core": "0.0.0-next-20260722143429", "@hey-api/json-schema-ref-parser": "0.0.0-next-20260722143429", "@hey-api/spec-types": "0.0.0-next-20260722143429", "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "cross-spawn": "7.0.6", "open": "11.0.0", "semver": "7.8.5" } }, "sha512-fIrrqGHyY8KVgGtaA68lD4n67tCwQVvOCofCpNF5ZoFFWSUjNE3jCPd0YDm+ljX0c7W6civOp5am9edMBXwiPw=="],
+    "@hey-api/shared": ["@hey-api/shared@0.0.0-next-20260723124023", "", { "dependencies": { "@hey-api/codegen-core": "0.0.0-next-20260723124023", "@hey-api/json-schema-ref-parser": "0.0.0-next-20260723124023", "@hey-api/spec-types": "0.0.0-next-20260723124023", "@hey-api/types": "0.1.4", "ansi-colors": "4.1.3", "cross-spawn": "7.0.6", "open": "11.0.0", "semver": "7.8.5" } }, "sha512-efMAuD4G1qXWXvVv7Kn2/x5LyASAx5tNsokXctactg2b96rQpFWZ47qJ7te6xT+Ss3rhpNHsWstwjqJIneuNMw=="],
 
-    "@hey-api/spec-types": ["@hey-api/spec-types@0.0.0-next-20260722143429", "", { "dependencies": { "@hey-api/types": "0.1.4" } }, "sha512-MJ8lvfoPn4ZzMrwAtLBiXKxMrUA8UNr+U8LD/gooiCKZvPXYANVlQQAAU/daBp6NUR5amOIJ8U1yPKOXkzOhNQ=="],
+    "@hey-api/spec-types": ["@hey-api/spec-types@0.0.0-next-20260723124023", "", { "dependencies": { "@hey-api/types": "0.1.4" } }, "sha512-RNq+yn8JsyoSQR6tmNx9QnaOEdimdOsqLZ5DWoDhIy7Su41XLL9tEnCPoPHULMobvWqUELGYQovL1UOq9FZfQA=="],
 
     "@hey-api/types": ["@hey-api/types@0.1.4", "", {}, "sha512-thWfawrDIP7wSI9ioT13I5soaaqB5vAPIiZmgD8PbeEVKNrkonc0N/Sjj97ezl7oQgusZmaNphGdMKipPO6IBg=="],
 
