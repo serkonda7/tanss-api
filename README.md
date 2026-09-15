@@ -77,6 +77,73 @@ await putApiV1TicketsTicketId({
 ```
 
 
+## 🏭 ERP integrations
+For the `/api/erp/v1/...` and `/api/v1/erp/...` endpoints, use the namespaced
+ERP client instead of the raw generated functions. It groups all 40+ ERP
+operations into resources (`companies`, `employees`, `tickets`, ...), returns
+response bodies directly, and throws an `ErpApiError` on non-2xx responses.
+
+> Requires a dedicated API token bound to an external API role of `ERP`,
+> `CENTRON`, or `SYSTEMHAUS_ONE` — a normal user login token will NOT work.
+> The token already includes the literal `Bearer ` prefix, send it verbatim.
+
+### Configure the ERP client
+```ts
+import { createErpClient } from 'tanss-api'
+
+const erp = createErpClient({
+  baseUrl: 'https://tanssserver.example.com',
+  token: process.env.TANSS_ERP_TOKEN!,
+})
+```
+
+Unlike the shared `client` singleton, each ERP client owns an isolated
+instance, so auth from other API areas can't leak into ERP requests.
+Rotate the token later with `erp.setToken(nextToken)`.
+
+### Make requests
+```ts
+import { createErpClient, ErpApiError } from 'tanss-api'
+
+const erp = createErpClient({
+  baseUrl: 'https://tanssserver.example.com',
+  token: process.env.TANSS_ERP_TOKEN!,
+})
+
+try {
+  // GET /api/erp/v1/companies/{id}
+  const company = await erp.companies.get(42)
+  console.log(company.content)
+
+  // Find a customer by its external ERP customer number
+  const matches = await erp.companies.searchByDisplayId('C-10042')
+
+  // Map ticket states/types before creating tickets via the sync
+  const statuses = await erp.tickets.statuses()
+  const types = await erp.tickets.types()
+
+  // POST /api/erp/v1/tickets
+  const ticket = await erp.tickets.create({
+    // ... TicketSaveWritable fields
+  })
+} catch (error) {
+  if (error instanceof ErpApiError) {
+    console.error(error.message, error.status, error.body)
+  } else {
+    throw error
+  }
+}
+```
+
+Available resources: `companies`, `employees`, `departments`, `categories`,
+`types`, `tickets`, `customers` (incl. `invoices`), `accountingTypes`,
+`checklists`, `catalog` (`projects`, `stocks`), and `offers` (ERP selections).
+
+> `erp.offers` (`/api/v1/offers/erpSelections*`) is the exception: those routes
+> authenticate with a normal user session token, not the ERP-role token. Pass
+> a user token to `createErpClient` when using that resource.
+
+
 ## 📜 License
 TANSS API and specification are licensed under a proprietary license by [HUCK IT GmbH][huck-imprint].
 
