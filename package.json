@@ -1,7 +1,7 @@
 {
   "name": "tanss-api",
   "description": "TypeScript client for the TANSS API",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "UNLICENSED",
   "author": "Lukas Neubert (serkonda7)",
   "homepage": "https://github.com/serkonda7/tanss-api",
@@ -38,6 +38,9 @@
     "build": "tsc -p tsconfig.build.json && bun run scripts/build.ts",
     "prepack": "bun run generate && bun run build",
     "pack": "bun pm pack --filename tanss-api.tgz"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "packageManager": "bun@1.4.0",
   "devDependencies": {
