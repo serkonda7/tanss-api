@@ -22,10 +22,28 @@ export type InvoicesQuery = GetApiErpV1InvoicesData['query']
 export function createCustomersResource(client: Client) {
 	return {
 		/**
-		 * Read the customer list through the legacy ERP backend bridge.
+		 * Read the full customer list through the legacy ERP backend bridge (`modified=-1`).
 		 */
-		async list(): Promise<GetApiErpV1CustomersResponse> {
-			return ensureErpData(await getApiErpV1Customers({ client }), 'erp.customers.list')
+		async listAll(): Promise<GetApiErpV1CustomersResponse> {
+			return ensureErpData(
+				await getApiErpV1Customers({ client, query: { modified: -1 } as unknown as never }),
+				'erp.customers.listAll',
+			)
+		},
+		/**
+		 * Read customers modified since the given Unix timestamp.
+		 *
+		 * Passes `modified` as a query parameter per the spec
+		 * (`GET /api/erp/v1/customers?modified=<unixTimestamp>`).
+		 */
+		async listModified(modified: number): Promise<GetApiErpV1CustomersResponse> {
+			return ensureErpData(
+				await getApiErpV1Customers({
+					client,
+					query: { modified } as unknown as never,
+				}),
+				'erp.customers.listModified',
+			)
 		},
 		/**
 		 * Create or update customer data via the legacy ERP backend bridge.

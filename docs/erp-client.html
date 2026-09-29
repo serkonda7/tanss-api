@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP client (createErpClient) — API reference</title>
+<style>
+:root { color-scheme: light dark; --bg: #fff; --fg: #1a1a1a; --muted: #666; --card: #f6f6f4; --border: #ddd; --accent: #0b5fff; }
+@media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #e8e8e8; --muted: #aaa; --card: #1e1e1e; --border: #333; --accent: #7aa5ff; } }
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); margin: 0; line-height: 1.5; }
+header.top { position: sticky; top: 0; background: var(--bg); border-bottom: 1px solid var(--border); padding: 1rem; z-index: 10; }
+header.top h1 { margin: 0 0 0.25rem; font-size: 1.4rem; }
+header.top p.sub { margin: 0 0 0.75rem; color: var(--muted); }
+.controls { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.controls input[type="search"] { flex: 1; min-width: 200px; padding: 0.5rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.controls button { padding: 0.5rem 0.75rem; cursor: pointer; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--fg); }
+.controls #count { color: var(--muted); font-size: 0.9rem; }
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start; }
+aside.sidebar { position: sticky; top: var(--top, 170px); max-height: calc(100vh - var(--top, 170px)); overflow-y: auto; border-right: 1px solid var(--border); padding: 1rem 0.75rem 2rem 1rem; }
+aside.sidebar nav { display: flex; flex-direction: column; gap: 0.15rem; }
+.side-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.75rem 0 0.25rem; }
+.side-label:first-child { margin-top: 0; }
+.nav-link { display: flex; justify-content: space-between; gap: 0.5rem; text-decoration: none; color: var(--fg); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.9rem; }
+.nav-link:hover { background: var(--card); }
+.nav-link.active { background: var(--card); outline: 1px solid var(--accent); }
+.nav-link span { color: var(--muted); }
+main { padding: 1rem; max-width: 960px; min-width: 0; }
+main h2, details.resource { scroll-margin-top: calc(var(--top, 170px) + 12px); }
+@media (max-width: 860px) {
+  .layout { display: block; }
+  aside.sidebar { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+  aside.sidebar nav { flex-direction: row; overflow-x: auto; gap: 0.4rem; align-items: center; }
+  .side-label { display: none; }
+  .nav-link { white-space: nowrap; border: 1px solid var(--border); }
+}
+pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; overflow-x: auto; }
+details.resource { border: 1px solid var(--border); border-radius: 8px; margin: 1rem 0; padding: 0 1rem 1rem; }
+details.resource summary { cursor: pointer; padding: 0.75rem 0; font-size: 1.1rem; }
+details.resource summary .count { color: var(--muted); margin-left: 0.5rem; font-size: 0.9rem; }
+details.resource summary .src { display: block; font-size: 0.8rem; color: var(--muted); }
+article.method { border-top: 1px solid var(--border); padding: 0.75rem 0; }
+article.method h4 { margin: 0 0 0.4rem; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+article.method h4 code { overflow-wrap: anywhere; }
+.meta { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+.badge { font-weight: 700; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; color: #fff; }
+.badge.get { background: #2a7f3f; } .badge.post { background: #0b5fff; } .badge.put { background: #b26a00; }
+.badge.del { background: #c0392b; } .badge.patch { background: #6c3483; } .badge.other { background: #666; }
+#empty { padding: 2rem 1rem; color: var(--muted); }
+footer { padding: 1rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); }
+code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>ERP client (<code>createErpClient</code>)</h1>
+<p class="sub">11 resources, 46 methods. All methods return the success body directly and throw <code>ErpApiError</code> on non-2xx. Regenerate with <code>bun run docs</code>.</p>
+<div class="controls">
+<input id="q" type="search" placeholder="Filter methods, e.g. companies, upload, POST /api/erp/v1/..." autocomplete="off">
+<button type="button" id="expand">Expand all</button>
+<button type="button" id="collapse">Collapse all</button>
+<span id="count" aria-live="polite"></span>
+</div>
+</header>
+<div class="layout">
+<aside class="sidebar"><nav aria-label="Page navigation">
+<div class="side-label">Guide</div>
+<a class="nav-link" href="#usage" data-target="usage">Usage</a>
+<a class="nav-link" href="#options" data-target="options">createErpClient(options)</a>
+<a class="nav-link" href="#errors" data-target="errors">ErpApiError</a>
+<div class="side-label">Resources</div>
+<a class="nav-link" href="#erp-accountingTypes" data-target="erp-accountingTypes"><code>erp.accountingTypes</code><span>4</span></a>
+<a class="nav-link" href="#erp-catalog" data-target="erp-catalog"><code>erp.catalog</code><span>2</span></a>
+<a class="nav-link" href="#erp-categories" data-target="erp-categories"><code>erp.categories</code><span>5</span></a>
+<a class="nav-link" href="#erp-types" data-target="erp-types"><code>erp.types</code><span>5</span></a>
+<a class="nav-link" href="#erp-checklists" data-target="erp-checklists"><code>erp.checklists</code><span>2</span></a>
+<a class="nav-link" href="#erp-companies" data-target="erp-companies"><code>erp.companies</code><span>8</span></a>
+<a class="nav-link" href="#erp-customers" data-target="erp-customers"><code>erp.customers</code><span>4</span></a>
+<a class="nav-link" href="#erp-departments" data-target="erp-departments"><code>erp.departments</code><span>2</span></a>
+<a class="nav-link" href="#erp-employees" data-target="erp-employees"><code>erp.employees</code><span>4</span></a>
+<a class="nav-link" href="#erp-offers" data-target="erp-offers"><code>erp.offers</code><span>6</span></a>
+<a class="nav-link" href="#erp-tickets" data-target="erp-tickets"><code>erp.tickets</code><span>4</span></a></nav></aside>
+<main>
+<h2 id="usage">Usage</h2>
+<pre><code>import { createErpClient } from 'tanss-api'
+
+const erp = createErpClient({
+  baseUrl: 'https://tanss.example.com',
+  token: process.env.TANSS_ERP_TOKEN!, // ERP/CENTRON/SYSTEMHAUS_ONE role, incl. Bearer prefix
+})
+
+const company = await erp.companies.get(42)
+erp.setToken(nextToken) // rotate without rebuilding</code></pre>
+<h2 id="options">createErpClient(options)</h2>
+<p>Isolated hey-api instance (no shared <code>client</code> singleton, so user tokens cannot leak into ERP requests).</p>
+<pre><code>interface CreateErpClientOptions {
+/**
+	 * Hostname of the TANSS instance, e.g. `https://tanss.example.com`.
+	 */
+	baseUrl: string
+	/**
+	 * ERP integration token, sent verbatim in the `apiToken` header
+	 * (including the `Bearer ` prefix).
+	 *
+	 * Must belong to an external API role of `ERP`, `CENTRON` or
+	 * `SYSTEMHAUS_ONE`. A normal user login token will NOT work for the
+	 * `/api/erp/v1/...` routes.
+	 */
+	token: string
+	/**
+	 * Custom fetch implementation. Defaults to `globalThis.fetch`.
+	 */
+	fetch?: typeof fetch
+	/**
+	 * Extra hey-api client config merged over the defaults.
+	 */
+	config?: Omit&lt;Config, 'baseUrl' | 'auth' | 'fetch'&gt;
+}</code></pre>
+<h2 id="errors">ErpApiError</h2>
+<p>Thrown on any non-2xx response. Fields: <code>message</code>, <code>status?</code>, <code>body</code>, <code>request?</code>, <code>response?</code>. Catch with <code>error instanceof ErpApiError</code>.</p>
+<p><strong>Note:</strong> <code>erp.offers</code> (<code>/api/v1/offers/erpSelections*</code>) uses a normal user session token, not the ERP-role token.</p>
+<h2 id="resources">Resources</h2>
+<details class="resource" id="erp-accountingTypes" open>
+<summary><code>erp.accountingTypes</code><span class="count">4 methods</span><span class="src">src/erp/resources/accountingTypes.ts</span></summary>
+<p>Accounting types (Leistungsarten) and their default prices.</p>
+<article class="method" data-search="erp.accountingtypes.list(): promise&lt;getapierpv1accountingtypesresponse&gt; list the accounting types configured in tanss. getapierpv1accountingtypes get /api/erp/v1/accountingtypes">
+<h4><code>erp.accountingTypes.list(): Promise&lt;GetApiErpV1AccountingtypesResponse&gt;</code></h4>
+<p>List the accounting types configured in TANSS.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/accountingtypes</code></span><span class="sdk">SDK: <code>getApiErpV1Accountingtypes</code></span></div>
+</article>
+<article class="method" data-search="erp.accountingtypes.create(body: createaccountingtypebody): promise&lt;postapierpv1accountingtypesresponse&gt; create a new accounting type (leistungsart). postapierpv1accountingtypes post /api/erp/v1/accountingtypes">
+<h4><code>erp.accountingTypes.create(body: CreateAccountingTypeBody): Promise&lt;PostApiErpV1AccountingtypesResponse&gt;</code></h4>
+<p>Create a new accounting type (Leistungsart).</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/accountingtypes</code></span><span class="sdk">SDK: <code>postApiErpV1Accountingtypes</code></span></div>
+</article>
+<article class="method" data-search="erp.accountingtypes.prices.list(): promise&lt;getapierpv1accountingtypespricesresponse&gt; list the default (system-wide) accounting type prices. getapierpv1accountingtypesprices get /api/erp/v1/accountingtypes/prices">
+<h4><code>erp.accountingTypes.prices.list(): Promise&lt;GetApiErpV1AccountingtypesPricesResponse&gt;</code></h4>
+<p>List the default (system-wide) accounting type prices.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/accountingtypes/prices</code></span><span class="sdk">SDK: <code>getApiErpV1AccountingtypesPrices</code></span></div>
+</article>
+<article class="method" data-search="erp.accountingtypes.prices.create(body: createaccountingtypepricebody): promise&lt;postapierpv1accountingtypespricesresponse&gt; save a new default price entry for an accounting type,
+optionally scoped to a linked entity. postapierpv1accountingtypesprices post /api/erp/v1/accountingtypes/prices">
+<h4><code>erp.accountingTypes.prices.create(body: CreateAccountingTypePriceBody): Promise&lt;PostApiErpV1AccountingtypesPricesResponse&gt;</code></h4>
+<p>Save a new default price entry for an accounting type,<br>optionally scoped to a linked entity.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/accountingtypes/prices</code></span><span class="sdk">SDK: <code>postApiErpV1AccountingtypesPrices</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-catalog" open>
+<summary><code>erp.catalog</code><span class="count">2 methods</span><span class="src">src/erp/resources/catalog.ts</span></summary>
+<p>ERP backend catalog (`/api/v1/erp/...`): projects and stocks resolved<br>through the factory-configured ERP service. Returns an empty list when no<br>ERP service is configured.</p>
+<article class="method" data-search="erp.catalog.projects(): promise&lt;getapiv1erpprojectsresponse&gt; list projects from the configured erp backend. getapiv1erpprojects get /api/v1/erp/projects">
+<h4><code>erp.catalog.projects(): Promise&lt;GetApiV1ErpProjectsResponse&gt;</code></h4>
+<p>List projects from the configured ERP backend.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/erp/projects</code></span><span class="sdk">SDK: <code>getApiV1ErpProjects</code></span></div>
+</article>
+<article class="method" data-search="erp.catalog.stocks(): promise&lt;getapiv1erpstocksresponse&gt; list stocks (warehouses/inventories) from the configured erp backend. getapiv1erpstocks get /api/v1/erp/stocks">
+<h4><code>erp.catalog.stocks(): Promise&lt;GetApiV1ErpStocksResponse&gt;</code></h4>
+<p>List stocks (warehouses/inventories) from the configured ERP backend.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/erp/stocks</code></span><span class="sdk">SDK: <code>getApiV1ErpStocks</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-categories" open>
+<summary><code>erp.categories</code><span class="count">5 methods</span><span class="src">src/erp/resources/categories.ts</span></summary>
+<p>Company classifications: categories (Firmen-Kategorien) each grouping<br>company types (Firmen-Typen).</p>
+<article class="method" data-search="erp.categories.list(): promise&lt;getapierpv1companycategoriesresponse&gt; list all company categories with their associated company types. getapierpv1companycategories get /api/erp/v1/companycategories">
+<h4><code>erp.categories.list(): Promise&lt;GetApiErpV1CompanyCategoriesResponse&gt;</code></h4>
+<p>List all company categories with their associated company types.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companyCategories</code></span><span class="sdk">SDK: <code>getApiErpV1CompanyCategories</code></span></div>
+</article>
+<article class="method" data-search="erp.categories.get(categoryid: number): promise&lt;getapierpv1companycategoriescategoryidresponse&gt; read the single company category identified by `categoryid`. getapierpv1companycategoriescategoryid get /api/erp/v1/companycategories/{categoryid}">
+<h4><code>erp.categories.get(categoryId: number): Promise&lt;GetApiErpV1CompanyCategoriesCategoryIdResponse&gt;</code></h4>
+<p>Read the single company category identified by `categoryId`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companyCategories/{categoryId}</code></span><span class="sdk">SDK: <code>getApiErpV1CompanyCategoriesCategoryId</code></span></div>
+</article>
+<article class="method" data-search="erp.categories.create(categoryid: string, body: createcompanycategorybody): promise&lt;postapierpv1companycategoriescategoryidresponse&gt; create a new company category. postapierpv1companycategoriescategoryid post /api/erp/v1/companycategories/{categoryid}">
+<h4><code>erp.categories.create(categoryId: string, body: CreateCompanyCategoryBody): Promise&lt;PostApiErpV1CompanyCategoriesCategoryIdResponse&gt;</code></h4>
+<p>Create a new company category.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/companyCategories/{categoryId}</code></span><span class="sdk">SDK: <code>postApiErpV1CompanyCategoriesCategoryId</code></span></div>
+</article>
+<article class="method" data-search="erp.categories.update(categoryid: number, body: updatecompanycategorybody): promise&lt;putapierpv1companycategoriescategoryidresponse&gt; update the company category identified by `categoryid`. putapierpv1companycategoriescategoryid put /api/erp/v1/companycategories/{categoryid}">
+<h4><code>erp.categories.update(categoryId: number, body: UpdateCompanyCategoryBody): Promise&lt;PutApiErpV1CompanyCategoriesCategoryIdResponse&gt;</code></h4>
+<p>Update the company category identified by `categoryId`.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/erp/v1/companyCategories/{categoryId}</code></span><span class="sdk">SDK: <code>putApiErpV1CompanyCategoriesCategoryId</code></span></div>
+</article>
+<article class="method" data-search="erp.categories.remove(categoryid: number): promise&lt;void&gt; delete the company category identified by `categoryid`. deleteapierpv1companycategoriescategoryid delete /api/erp/v1/companycategories/{categoryid}">
+<h4><code>erp.categories.remove(categoryId: number): Promise&lt;void&gt;</code></h4>
+<p>Delete the company category identified by `categoryId`.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/erp/v1/companyCategories/{categoryId}</code></span><span class="sdk">SDK: <code>deleteApiErpV1CompanyCategoriesCategoryId</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-types" open>
+<summary><code>erp.types</code><span class="count">5 methods</span><span class="src">src/erp/resources/categories.ts</span></summary>
+<p>Company types (Firmen-Typen) belonging to a category.</p>
+<article class="method" data-search="erp.types.list(): promise&lt;getapierpv1typesresponse&gt; list all company types configured in tanss. getapierpv1types get /api/erp/v1/types">
+<h4><code>erp.types.list(): Promise&lt;GetApiErpV1TypesResponse&gt;</code></h4>
+<p>List all company types configured in TANSS.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/types</code></span><span class="sdk">SDK: <code>getApiErpV1Types</code></span></div>
+</article>
+<article class="method" data-search="erp.types.get(typeid: number): promise&lt;getapierpv1typestypeidresponse&gt; read the single company type identified by `typeid`. getapierpv1typestypeid get /api/erp/v1/types/{typeid}">
+<h4><code>erp.types.get(typeId: number): Promise&lt;GetApiErpV1TypesTypeIdResponse&gt;</code></h4>
+<p>Read the single company type identified by `typeId`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/types/{typeId}</code></span><span class="sdk">SDK: <code>getApiErpV1TypesTypeId</code></span></div>
+</article>
+<article class="method" data-search="erp.types.create(body: createcompanytypebody): promise&lt;postapierpv1typesresponse&gt; create a new company type and assign it to a category. postapierpv1types post /api/erp/v1/types">
+<h4><code>erp.types.create(body: CreateCompanyTypeBody): Promise&lt;PostApiErpV1TypesResponse&gt;</code></h4>
+<p>Create a new company type and assign it to a category.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/types</code></span><span class="sdk">SDK: <code>postApiErpV1Types</code></span></div>
+</article>
+<article class="method" data-search="erp.types.update(typeid: number, body: updatecompanytypebody): promise&lt;putapierpv1typestypeidresponse&gt; update the company type identified by `typeid`. putapierpv1typestypeid put /api/erp/v1/types/{typeid}">
+<h4><code>erp.types.update(typeId: number, body: UpdateCompanyTypeBody): Promise&lt;PutApiErpV1TypesTypeIdResponse&gt;</code></h4>
+<p>Update the company type identified by `typeId`.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/erp/v1/types/{typeId}</code></span><span class="sdk">SDK: <code>putApiErpV1TypesTypeId</code></span></div>
+</article>
+<article class="method" data-search="erp.types.remove(typeid: number): promise&lt;void&gt; delete the company type identified by `typeid`. deleteapierpv1typestypeid delete /api/erp/v1/types/{typeid}">
+<h4><code>erp.types.remove(typeId: number): Promise&lt;void&gt;</code></h4>
+<p>Delete the company type identified by `typeId`.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/erp/v1/types/{typeId}</code></span><span class="sdk">SDK: <code>deleteApiErpV1TypesTypeId</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-checklists" open>
+<summary><code>erp.checklists</code><span class="count">2 methods</span><span class="src">src/erp/resources/checklists.ts</span></summary>
+<p>Checklists: pick a checklist and assign it to a ticket (or other entity).</p>
+<article class="method" data-search="erp.checklists.list(query?: checklistsquery): promise&lt;getapierpv1checklistsresponse&gt; list checklists, optionally filtered by company and/or department. getapierpv1checklists get /api/erp/v1/checklists">
+<h4><code>erp.checklists.list(query?: ChecklistsQuery): Promise&lt;GetApiErpV1ChecklistsResponse&gt;</code></h4>
+<p>List checklists, optionally filtered by company and/or department.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/checklists</code></span><span class="sdk">SDK: <code>getApiErpV1Checklists</code></span></div>
+</article>
+<article class="method" data-search="erp.checklists.assign(args: assignchecklistargs): promise&lt;postapierpv1checklistsassignmentlinktypeidlinkidchecklistidresponse&gt; assign a checklist to a ticket (`linktypeid: 11`). postapierpv1checklistsassignmentlinktypeidlinkidchecklistid post /api/erp/v1/checklists/assignment/{linktypeid}/{linkid}/{checklistid}">
+<h4><code>erp.checklists.assign(args: AssignChecklistArgs): Promise&lt;PostApiErpV1ChecklistsAssignmentLinkTypeIdLinkIdChecklistIdResponse&gt;</code></h4>
+<p>Assign a checklist to a ticket (`linkTypeId: 11`).</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/checklists/assignment/{linkTypeId}/{linkId}/{checklistId}</code></span><span class="sdk">SDK: <code>postApiErpV1ChecklistsAssignmentLinkTypeIdLinkIdChecklistId</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-companies" open>
+<summary><code>erp.companies</code><span class="count">8 methods</span><span class="src">src/erp/resources/companies.ts</span></summary>
+<p>Company (customer) master data: CRUD plus the ERP lookup and<br>employee/department views scoped to companies.</p>
+<article class="method" data-search="erp.companies.create(body: createcompanybody): promise&lt;postapierpv1companiesresponse&gt; create a new company (customer) record from erp master data. postapierpv1companies post /api/erp/v1/companies">
+<h4><code>erp.companies.create(body: CreateCompanyBody): Promise&lt;PostApiErpV1CompaniesResponse&gt;</code></h4>
+<p>Create a new company (customer) record from ERP master data.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/companies</code></span><span class="sdk">SDK: <code>postApiErpV1Companies</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.get(id: number): promise&lt;getapierpv1companiesidresponse&gt; read the company record identified by `id`. getapierpv1companiesid get /api/erp/v1/companies/{id}">
+<h4><code>erp.companies.get(id: number): Promise&lt;GetApiErpV1CompaniesIdResponse&gt;</code></h4>
+<p>Read the company record identified by `id`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companies/{id}</code></span><span class="sdk">SDK: <code>getApiErpV1CompaniesId</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.update(id: number, body: updatecompanybody): promise&lt;putapierpv1companiesidresponse&gt; update the company identified by `id` with erp master-data changes. putapierpv1companiesid put /api/erp/v1/companies/{id}">
+<h4><code>erp.companies.update(id: number, body: UpdateCompanyBody): Promise&lt;PutApiErpV1CompaniesIdResponse&gt;</code></h4>
+<p>Update the company identified by `id` with ERP master-data changes.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/erp/v1/companies/{id}</code></span><span class="sdk">SDK: <code>putApiErpV1CompaniesId</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.remove(id: number): promise&lt;void&gt; delete the company identified by `id` with its dependent data. deleteapierpv1companiesid delete /api/erp/v1/companies/{id}">
+<h4><code>erp.companies.remove(id: number): Promise&lt;void&gt;</code></h4>
+<p>Delete the company identified by `id` with its dependent data.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/erp/v1/companies/{id}</code></span><span class="sdk">SDK: <code>deleteApiErpV1CompaniesId</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.searchbydisplayid(displayid: string): promise&lt;getapierpv1companiessearchiddisplayidresponse&gt; search customers by the external erp customer number (`displayid`). getapierpv1companiessearchiddisplayid get /api/erp/v1/companies/searchid/{displayid}">
+<h4><code>erp.companies.searchByDisplayId(displayId: string): Promise&lt;GetApiErpV1CompaniesSearchIdDisplayIdResponse&gt;</code></h4>
+<p>Search customers by the external ERP customer number (`displayId`).</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companies/searchId/{displayId}</code></span><span class="sdk">SDK: <code>getApiErpV1CompaniesSearchIdDisplayId</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.employees(query?: companiesemployeesquery): promise&lt;getapierpv1companiesemployeesresponse&gt; list employees of the own company (or filter by `companyid` /
+`companynumber`). getapierpv1companiesemployees get /api/erp/v1/companies/employees">
+<h4><code>erp.companies.employees(query?: CompaniesEmployeesQuery): Promise&lt;GetApiErpV1CompaniesEmployeesResponse&gt;</code></h4>
+<p>List employees of the own company (or filter by `companyId` /<br>`companyNumber`).</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companies/employees</code></span><span class="sdk">SDK: <code>getApiErpV1CompaniesEmployees</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.departments(): promise&lt;getapierpv1companiesdepartmentsresponse&gt; list the company departments (abteilungen) configured in tanss. getapierpv1companiesdepartments get /api/erp/v1/companies/departments">
+<h4><code>erp.companies.departments(): Promise&lt;GetApiErpV1CompaniesDepartmentsResponse&gt;</code></h4>
+<p>List the company departments (Abteilungen) configured in TANSS.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companies/departments</code></span><span class="sdk">SDK: <code>getApiErpV1CompaniesDepartments</code></span></div>
+</article>
+<article class="method" data-search="erp.companies.employeesdepartments(): promise&lt;getapierpv1companiesemployeesdepartmentsresponse&gt; map of department lists keyed by employee id for all active
+employees of the own company. getapierpv1companiesemployeesdepartments get /api/erp/v1/companies/employees/departments">
+<h4><code>erp.companies.employeesDepartments(): Promise&lt;GetApiErpV1CompaniesEmployeesDepartmentsResponse&gt;</code></h4>
+<p>Map of department lists keyed by employee ID for all active<br>employees of the own company.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companies/employees/departments</code></span><span class="sdk">SDK: <code>getApiErpV1CompaniesEmployeesDepartments</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-customers" open>
+<summary><code>erp.customers</code><span class="count">4 methods</span><span class="src">src/erp/resources/customers.ts</span></summary>
+<p>Legacy PHP ERP bridge: customer master data sync and invoice reads.</p>
+<article class="method" data-search="erp.customers.listall(): promise&lt;getapierpv1customersresponse&gt; read the full customer list through the legacy erp backend bridge (`modified=-1`). getapierpv1customers get /api/erp/v1/customers">
+<h4><code>erp.customers.listAll(): Promise&lt;GetApiErpV1CustomersResponse&gt;</code></h4>
+<p>Read the full customer list through the legacy ERP backend bridge (`modified=-1`).</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/customers</code></span><span class="sdk">SDK: <code>getApiErpV1Customers</code></span></div>
+</article>
+<article class="method" data-search="erp.customers.listmodified(modified: number): promise&lt;getapierpv1customersresponse&gt; read customers modified since the given unix timestamp.
+
+passes `modified` as a query parameter per the spec
+(`get /api/erp/v1/customers?modified=&lt;unixtimestamp&gt;`). getapierpv1customers get /api/erp/v1/customers">
+<h4><code>erp.customers.listModified(modified: number): Promise&lt;GetApiErpV1CustomersResponse&gt;</code></h4>
+<p>Read customers modified since the given Unix timestamp.</p>
+<p>Passes `modified` as a query parameter per the spec<br>(`GET /api/erp/v1/customers?modified=&lt;unixTimestamp&gt;`).</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/customers</code></span><span class="sdk">SDK: <code>getApiErpV1Customers</code></span></div>
+</article>
+<article class="method" data-search="erp.customers.upsert(body: upsertcustomersbody): promise&lt;postapierpv1customersresponse&gt; create or update customer data via the legacy erp backend bridge.
+
+the endpoint takes a raw string body (no json wrapping). postapierpv1customers post /api/erp/v1/customers">
+<h4><code>erp.customers.upsert(body: UpsertCustomersBody): Promise&lt;PostApiErpV1CustomersResponse&gt;</code></h4>
+<p>Create or update customer data via the legacy ERP backend bridge.</p>
+<p>The endpoint takes a raw string body (no JSON wrapping).</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/customers</code></span><span class="sdk">SDK: <code>postApiErpV1Customers</code></span></div>
+</article>
+<article class="method" data-search="erp.customers.invoices(query?: invoicesquery): promise&lt;getapierpv1invoicesresponse&gt; read invoices for the given customer from the legacy erp backend. getapierpv1invoices get /api/erp/v1/invoices">
+<h4><code>erp.customers.invoices(query?: InvoicesQuery): Promise&lt;GetApiErpV1InvoicesResponse&gt;</code></h4>
+<p>Read invoices for the given customer from the legacy ERP backend.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/invoices</code></span><span class="sdk">SDK: <code>getApiErpV1Invoices</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-departments" open>
+<summary><code>erp.departments</code><span class="count">2 methods</span><span class="src">src/erp/resources/departments.ts</span></summary>
+<p>Departments (Abteilungen): company-wide list plus the employees assigned<br>to a single department.</p>
+<article class="method" data-search="erp.departments.list(): promise&lt;getapierpv1companiesdepartmentsresponse&gt; list the company departments configured in tanss. getapierpv1companiesdepartments get /api/erp/v1/companies/departments">
+<h4><code>erp.departments.list(): Promise&lt;GetApiErpV1CompaniesDepartmentsResponse&gt;</code></h4>
+<p>List the company departments configured in TANSS.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/companies/departments</code></span><span class="sdk">SDK: <code>getApiErpV1CompaniesDepartments</code></span></div>
+</article>
+<article class="method" data-search="erp.departments.employees(departmentid: number): promise&lt;getapierpv1departmentsdepartmentidemployeesresponse&gt; list all employees of the given department. getapierpv1departmentsdepartmentidemployees get /api/erp/v1/departments/{departmentid}/employees">
+<h4><code>erp.departments.employees(departmentId: number): Promise&lt;GetApiErpV1DepartmentsDepartmentIdEmployeesResponse&gt;</code></h4>
+<p>List all employees of the given department.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/departments/{departmentId}/employees</code></span><span class="sdk">SDK: <code>getApiErpV1DepartmentsDepartmentIdEmployees</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-employees" open>
+<summary><code>erp.employees</code><span class="count">4 methods</span><span class="src">src/erp/resources/employees.ts</span></summary>
+<p>Employee master data: CRUD plus the departments an employee belongs to.</p>
+<article class="method" data-search="erp.employees.create(body: createemployeebody): promise&lt;postapierpv1employeesresponse&gt; create a new employee record from the erp payload. postapierpv1employees post /api/erp/v1/employees">
+<h4><code>erp.employees.create(body: CreateEmployeeBody): Promise&lt;PostApiErpV1EmployeesResponse&gt;</code></h4>
+<p>Create a new employee record from the ERP payload.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/employees</code></span><span class="sdk">SDK: <code>postApiErpV1Employees</code></span></div>
+</article>
+<article class="method" data-search="erp.employees.get(id: number): promise&lt;getapierpv1employeesidresponse&gt; read the single employee record identified by `id`. getapierpv1employeesid get /api/erp/v1/employees/{id}">
+<h4><code>erp.employees.get(id: number): Promise&lt;GetApiErpV1EmployeesIdResponse&gt;</code></h4>
+<p>Read the single employee record identified by `id`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/employees/{id}</code></span><span class="sdk">SDK: <code>getApiErpV1EmployeesId</code></span></div>
+</article>
+<article class="method" data-search="erp.employees.update(id: number, body: updateemployeebody): promise&lt;putapierpv1employeesidresponse&gt; update the employee record identified by `id`. putapierpv1employeesid put /api/erp/v1/employees/{id}">
+<h4><code>erp.employees.update(id: number, body: UpdateEmployeeBody): Promise&lt;PutApiErpV1EmployeesIdResponse&gt;</code></h4>
+<p>Update the employee record identified by `id`.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/erp/v1/employees/{id}</code></span><span class="sdk">SDK: <code>putApiErpV1EmployeesId</code></span></div>
+</article>
+<article class="method" data-search="erp.employees.departments(employeeid: number): promise&lt;getapierpv1employeesemployeeiddepartmentsresponse&gt; list all departments associated with the given employee. getapierpv1employeesemployeeiddepartments get /api/erp/v1/employees/{employeeid}/departments">
+<h4><code>erp.employees.departments(employeeId: number): Promise&lt;GetApiErpV1EmployeesEmployeeIdDepartmentsResponse&gt;</code></h4>
+<p>List all departments associated with the given employee.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/employees/{employeeId}/departments</code></span><span class="sdk">SDK: <code>getApiErpV1EmployeesEmployeeIdDepartments</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-offers" open>
+<summary><code>erp.offers</code><span class="count">6 methods</span><span class="src">src/erp/resources/offers.ts</span></summary>
+<p>Offer ERP selections (`/api/v1/offers/erpSelections*`): material<br>selections used in offer templates.</p>
+<p>Note: unlike `/api/erp/v1/...`, these routes authenticate with a normal<br>user session token (`ApiTokenAuth`), not the ERP-role token. Pass a user<br>token to `createErpClient` when using this resource.</p>
+<article class="method" data-search="erp.offers.create(body: createerpselectionbody): promise&lt;postapiv1offerserpselectionsresponse&gt; create a new erp selection including its materials. postapiv1offerserpselections post /api/v1/offers/erpselections">
+<h4><code>erp.offers.create(body: CreateErpSelectionBody): Promise&lt;PostApiV1OffersErpSelectionsResponse&gt;</code></h4>
+<p>Create a new ERP selection including its materials.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/v1/offers/erpSelections</code></span><span class="sdk">SDK: <code>postApiV1OffersErpSelections</code></span></div>
+</article>
+<article class="method" data-search="erp.offers.get(erpselectionid: number): promise&lt;getapiv1offerserpselectionserpselectionidresponse&gt; fetch an erp selection (including material) by id. getapiv1offerserpselectionserpselectionid get /api/v1/offers/erpselections/{erpselectionid}">
+<h4><code>erp.offers.get(erpSelectionId: number): Promise&lt;GetApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
+<p>Fetch an ERP selection (including material) by id.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsErpSelectionId</code></span></div>
+</article>
+<article class="method" data-search="erp.offers.update(erpselectionid: number, body: updateerpselectionbody): promise&lt;putapiv1offerserpselectionserpselectionidresponse&gt; update an erp selection and save all attached materials. putapiv1offerserpselectionserpselectionid put /api/v1/offers/erpselections/{erpselectionid}">
+<h4><code>erp.offers.update(erpSelectionId: number, body: UpdateErpSelectionBody): Promise&lt;PutApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
+<p>Update an ERP selection and save all attached materials.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>putApiV1OffersErpSelectionsErpSelectionId</code></span></div>
+</article>
+<article class="method" data-search="erp.offers.remove(erpselectionid: number): promise&lt;deleteapiv1offerserpselectionserpselectionidresponse&gt; delete an erp selection. deleteapiv1offerserpselectionserpselectionid delete /api/v1/offers/erpselections/{erpselectionid}">
+<h4><code>erp.offers.remove(erpSelectionId: number): Promise&lt;DeleteApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
+<p>Delete an ERP selection.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>deleteApiV1OffersErpSelectionsErpSelectionId</code></span></div>
+</article>
+<article class="method" data-search="erp.offers.matpicker(query: matpickerquery): promise&lt;getapiv1offerserpselectionsmatpickerresponse&gt; list materials for the material picker. getapiv1offerserpselectionsmatpicker get /api/v1/offers/erpselections/matpicker">
+<h4><code>erp.offers.matPicker(query: MatPickerQuery): Promise&lt;GetApiV1OffersErpSelectionsMatPickerResponse&gt;</code></h4>
+<p>List materials for the &quot;material picker&quot;.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/matPicker</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsMatPicker</code></span></div>
+</article>
+<article class="method" data-search="erp.offers.matpickerbyselection(erpselectionid: number): promise&lt;getapiv1offerserpselectionsmatpickererpselectionidresponse&gt; list materials of the picker scoped to a given erp selection. getapiv1offerserpselectionsmatpickererpselectionid get /api/v1/offers/erpselections/matpicker/{erpselectionid}">
+<h4><code>erp.offers.matPickerBySelection(erpSelectionId: number): Promise&lt;GetApiV1OffersErpSelectionsMatPickerErpSelectionIdResponse&gt;</code></h4>
+<p>List materials of the picker scoped to a given ERP selection.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/matPicker/{erpSelectionId}</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsMatPickerErpSelectionId</code></span></div>
+</article>
+</details>
+<details class="resource" id="erp-tickets" open>
+<summary><code>erp.tickets</code><span class="count">4 methods</span><span class="src">src/erp/resources/tickets.ts</span></summary>
+<p>Tickets as seen by ERP integrations: create tickets, resolve status/type<br>mappings, and upload documents or images into a ticket.</p>
+<article class="method" data-search="erp.tickets.create(body: createerpticketbody): promise&lt;postapierpv1ticketsresponse&gt; create a new ticket in the database. postapierpv1tickets post /api/erp/v1/tickets">
+<h4><code>erp.tickets.create(body: CreateErpTicketBody): Promise&lt;PostApiErpV1TicketsResponse&gt;</code></h4>
+<p>Create a new ticket in the database.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/tickets</code></span><span class="sdk">SDK: <code>postApiErpV1Tickets</code></span></div>
+</article>
+<article class="method" data-search="erp.tickets.statuses(): promise&lt;getapierpv1ticketsstatusresponse&gt; list all ticket states configured in tanss (for status mapping). getapierpv1ticketsstatus get /api/erp/v1/tickets/status">
+<h4><code>erp.tickets.statuses(): Promise&lt;GetApiErpV1TicketsStatusResponse&gt;</code></h4>
+<p>List all ticket states configured in TANSS (for status mapping).</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/tickets/status</code></span><span class="sdk">SDK: <code>getApiErpV1TicketsStatus</code></span></div>
+</article>
+<article class="method" data-search="erp.tickets.types(): promise&lt;getapierpv1ticketstypesresponse&gt; list all active ticket types configured in tanss. getapierpv1ticketstypes get /api/erp/v1/tickets/types">
+<h4><code>erp.tickets.types(): Promise&lt;GetApiErpV1TicketsTypesResponse&gt;</code></h4>
+<p>List all active ticket types configured in TANSS.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/tickets/types</code></span><span class="sdk">SDK: <code>getApiErpV1TicketsTypes</code></span></div>
+</article>
+<article class="method" data-search="erp.tickets.upload(ticketid: number, files: uploadticketfilebody): promise&lt;postapierpv1ticketsticketiduploadresponse&gt; upload a document or image into the given ticket. postapierpv1ticketsticketidupload post /api/erp/v1/tickets/{ticketid}/upload">
+<h4><code>erp.tickets.upload(ticketId: number, files: UploadTicketFileBody): Promise&lt;PostApiErpV1TicketsTicketIdUploadResponse&gt;</code></h4>
+<p>Upload a document or image into the given ticket.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/erp/v1/tickets/{ticketId}/upload</code></span><span class="sdk">SDK: <code>postApiErpV1TicketsTicketIdUpload</code></span></div>
+</article>
+</details>
+<p id="empty" hidden>No methods match the current filter.</p>
+</main>
+</div>
+<footer>DO NOT EDIT — generated by <code>bun run docs</code>. Edit JSDoc in <code>src/erp/**/*.ts</code> instead. Raw generated SDK (<code>src/generated/sdk.gen.ts</code>, 850+ functions) is documented via JSDoc/OpenAPI, not here.</footer>
+<script>
+const q = document.getElementById('q');
+const methods = Array.from(document.querySelectorAll('.method'));
+const sections = Array.from(document.querySelectorAll('details.resource'));
+const empty = document.getElementById('empty');
+const count = document.getElementById('count');
+function apply() {
+  const needle = q.value.trim().toLowerCase();
+  let visible = 0;
+  for (const m of methods) {
+    const hay = m.getAttribute('data-search') || '';
+    const hit = !needle || hay.includes(needle);
+    m.hidden = !hit;
+    if (hit) visible++;
+  }
+  for (const s of sections) {
+    const cards = Array.from(s.querySelectorAll('.method'));
+    const any = cards.some((m) => !m.hidden);
+    s.hidden = !any;
+    if (needle && any) s.open = true;
+  }
+  count.textContent = visible + ' of ' + methods.length + ' methods';
+  empty.hidden = visible !== 0;
+}
+q.addEventListener('input', apply);
+apply();
+function setTop() {
+  const h = document.querySelector('header.top');
+  if (h) document.documentElement.style.setProperty('--top', h.offsetHeight + 8 + 'px');
+}
+setTop();
+window.addEventListener('resize', setTop);
+const links = Array.from(document.querySelectorAll('.nav-link'));
+const targets = links
+  .map((a) => document.getElementById(a.getAttribute('data-target') || ''))
+  .filter((el) => el);
+function spy() {
+  const top = (document.querySelector('header.top') || { offsetHeight: 170 }).offsetHeight + 24;
+  let current = '';
+  for (const el of targets) {
+    if (el.getBoundingClientRect().top <= top) current = el.id;
+  }
+  for (const a of links) {
+    const on = a.getAttribute('data-target') === current;
+    if (on) a.classList.add('active');
+    else a.classList.remove('active');
+  }
+}
+document.addEventListener('scroll', spy, { passive: true });
+spy();
+document.getElementById('expand').addEventListener('click', () => {
+  for (const s of sections) {
+    if (!s.hidden) s.open = true;
+  }
+});
+document.getElementById('collapse').addEventListener('click', () => {
+  for (const s of sections) s.open = false;
+});
+</script>
+</body>
+</html>

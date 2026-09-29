@@ -1,4 +1,11 @@
 # Changelog
+## 0.3.0
+_2026-09-29_
+
+- split `erp.customers.list()` into `erp.customers.listAll()` and `erp.customers.listModified(timestamp)`
+- simple docs generator
+
+
 ## 0.2.1
 _2026-09-18_
 

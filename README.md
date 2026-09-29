@@ -139,6 +139,8 @@ Available resources: `companies`, `employees`, `departments`, `categories`,
 `types`, `tickets`, `customers` (incl. `invoices`), `accountingTypes`,
 `checklists`, `catalog` (`projects`, `stocks`), and `offers` (ERP selections).
 
+Full method reference (regenerated via `bun run docs`): [`docs/erp-client.html`](./docs/erp-client.html).
+
 > `erp.offers` (`/api/v1/offers/erpSelections*`) is the exception: those routes
 > authenticate with a normal user session token, not the ERP-role token. Pass
 > a user token to `createErpClient` when using that resource.
