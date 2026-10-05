@@ -54,7 +54,7 @@ code { font-family: ui-monospace, monospace; }
 <body>
 <header class="top">
 <h1>ERP client (<code>createErpClient</code>)</h1>
-<p class="sub">11 resources, 46 methods. All methods return the success body directly and throw <code>ErpApiError</code> on non-2xx. Regenerate with <code>bun run docs</code>.</p>
+<p class="sub">10 resources, 40 methods. All methods return the success body directly and throw <code>TanssApiError</code> on non-2xx. Regenerate with <code>bun run docs</code>.</p>
 <div class="controls">
 <input id="q" type="search" placeholder="Filter methods, e.g. companies, upload, POST /api/erp/v1/..." autocomplete="off">
 <button type="button" id="expand">Expand all</button>
@@ -67,7 +67,7 @@ code { font-family: ui-monospace, monospace; }
 <div class="side-label">Guide</div>
 <a class="nav-link" href="#usage" data-target="usage">Usage</a>
 <a class="nav-link" href="#options" data-target="options">createErpClient(options)</a>
-<a class="nav-link" href="#errors" data-target="errors">ErpApiError</a>
+<a class="nav-link" href="#errors" data-target="errors">TanssApiError</a>
 <div class="side-label">Resources</div>
 <a class="nav-link" href="#erp-accountingTypes" data-target="erp-accountingTypes"><code>erp.accountingTypes</code><span>4</span></a>
 <a class="nav-link" href="#erp-catalog" data-target="erp-catalog"><code>erp.catalog</code><span>2</span></a>
@@ -78,7 +78,6 @@ code { font-family: ui-monospace, monospace; }
 <a class="nav-link" href="#erp-customers" data-target="erp-customers"><code>erp.customers</code><span>4</span></a>
 <a class="nav-link" href="#erp-departments" data-target="erp-departments"><code>erp.departments</code><span>2</span></a>
 <a class="nav-link" href="#erp-employees" data-target="erp-employees"><code>erp.employees</code><span>4</span></a>
-<a class="nav-link" href="#erp-offers" data-target="erp-offers"><code>erp.offers</code><span>6</span></a>
 <a class="nav-link" href="#erp-tickets" data-target="erp-tickets"><code>erp.tickets</code><span>4</span></a></nav></aside>
 <main>
 <h2 id="usage">Usage</h2>
@@ -116,9 +115,9 @@ erp.setToken(nextToken) // rotate without rebuilding</code></pre>
 	 */
 	config?: Omit&lt;Config, 'baseUrl' | 'auth' | 'fetch'&gt;
 }</code></pre>
-<h2 id="errors">ErpApiError</h2>
-<p>Thrown on any non-2xx response. Fields: <code>message</code>, <code>status?</code>, <code>body</code>, <code>request?</code>, <code>response?</code>. Catch with <code>error instanceof ErpApiError</code>.</p>
-<p><strong>Note:</strong> <code>erp.offers</code> (<code>/api/v1/offers/erpSelections*</code>) uses a normal user session token, not the ERP-role token.</p>
+<h2 id="errors">TanssApiError</h2>
+<p>Thrown on any non-2xx response. Fields: <code>message</code>, <code>status?</code>, <code>body</code>, <code>request?</code>, <code>response?</code>. Catch with <code>error instanceof TanssApiError</code>.</p>
+<p><strong>Note:</strong> <code>/api/v1/...</code> routes that need a normal user session token (devices, offer ERP selections) live on <code>createTanssClient</code> (<a href="./tanss-client.html">reference</a>).</p>
 <h2 id="resources">Resources</h2>
 <details class="resource" id="erp-accountingTypes" open>
 <summary><code>erp.accountingTypes</code><span class="count">4 methods</span><span class="src">src/erp/resources/accountingTypes.ts</span></summary>
@@ -344,41 +343,6 @@ the endpoint takes a raw string body (no json wrapping). postapierpv1customers p
 <h4><code>erp.employees.departments(employeeId: number): Promise&lt;GetApiErpV1EmployeesEmployeeIdDepartmentsResponse&gt;</code></h4>
 <p>List all departments associated with the given employee.</p>
 <div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/erp/v1/employees/{employeeId}/departments</code></span><span class="sdk">SDK: <code>getApiErpV1EmployeesEmployeeIdDepartments</code></span></div>
-</article>
-</details>
-<details class="resource" id="erp-offers" open>
-<summary><code>erp.offers</code><span class="count">6 methods</span><span class="src">src/erp/resources/offers.ts</span></summary>
-<p>Offer ERP selections (`/api/v1/offers/erpSelections*`): material<br>selections used in offer templates.</p>
-<p>Note: unlike `/api/erp/v1/...`, these routes authenticate with a normal<br>user session token (`ApiTokenAuth`), not the ERP-role token. Pass a user<br>token to `createErpClient` when using this resource.</p>
-<article class="method" data-search="erp.offers.create(body: createerpselectionbody): promise&lt;postapiv1offerserpselectionsresponse&gt; create a new erp selection including its materials. postapiv1offerserpselections post /api/v1/offers/erpselections">
-<h4><code>erp.offers.create(body: CreateErpSelectionBody): Promise&lt;PostApiV1OffersErpSelectionsResponse&gt;</code></h4>
-<p>Create a new ERP selection including its materials.</p>
-<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/v1/offers/erpSelections</code></span><span class="sdk">SDK: <code>postApiV1OffersErpSelections</code></span></div>
-</article>
-<article class="method" data-search="erp.offers.get(erpselectionid: number): promise&lt;getapiv1offerserpselectionserpselectionidresponse&gt; fetch an erp selection (including material) by id. getapiv1offerserpselectionserpselectionid get /api/v1/offers/erpselections/{erpselectionid}">
-<h4><code>erp.offers.get(erpSelectionId: number): Promise&lt;GetApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
-<p>Fetch an ERP selection (including material) by id.</p>
-<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsErpSelectionId</code></span></div>
-</article>
-<article class="method" data-search="erp.offers.update(erpselectionid: number, body: updateerpselectionbody): promise&lt;putapiv1offerserpselectionserpselectionidresponse&gt; update an erp selection and save all attached materials. putapiv1offerserpselectionserpselectionid put /api/v1/offers/erpselections/{erpselectionid}">
-<h4><code>erp.offers.update(erpSelectionId: number, body: UpdateErpSelectionBody): Promise&lt;PutApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
-<p>Update an ERP selection and save all attached materials.</p>
-<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>putApiV1OffersErpSelectionsErpSelectionId</code></span></div>
-</article>
-<article class="method" data-search="erp.offers.remove(erpselectionid: number): promise&lt;deleteapiv1offerserpselectionserpselectionidresponse&gt; delete an erp selection. deleteapiv1offerserpselectionserpselectionid delete /api/v1/offers/erpselections/{erpselectionid}">
-<h4><code>erp.offers.remove(erpSelectionId: number): Promise&lt;DeleteApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
-<p>Delete an ERP selection.</p>
-<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>deleteApiV1OffersErpSelectionsErpSelectionId</code></span></div>
-</article>
-<article class="method" data-search="erp.offers.matpicker(query: matpickerquery): promise&lt;getapiv1offerserpselectionsmatpickerresponse&gt; list materials for the material picker. getapiv1offerserpselectionsmatpicker get /api/v1/offers/erpselections/matpicker">
-<h4><code>erp.offers.matPicker(query: MatPickerQuery): Promise&lt;GetApiV1OffersErpSelectionsMatPickerResponse&gt;</code></h4>
-<p>List materials for the &quot;material picker&quot;.</p>
-<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/matPicker</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsMatPicker</code></span></div>
-</article>
-<article class="method" data-search="erp.offers.matpickerbyselection(erpselectionid: number): promise&lt;getapiv1offerserpselectionsmatpickererpselectionidresponse&gt; list materials of the picker scoped to a given erp selection. getapiv1offerserpselectionsmatpickererpselectionid get /api/v1/offers/erpselections/matpicker/{erpselectionid}">
-<h4><code>erp.offers.matPickerBySelection(erpSelectionId: number): Promise&lt;GetApiV1OffersErpSelectionsMatPickerErpSelectionIdResponse&gt;</code></h4>
-<p>List materials of the picker scoped to a given ERP selection.</p>
-<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/matPicker/{erpSelectionId}</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsMatPickerErpSelectionId</code></span></div>
 </article>
 </details>
 <details class="resource" id="erp-tickets" open>

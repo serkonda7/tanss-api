@@ -81,7 +81,7 @@ await putApiV1TicketsTicketId({
 For the `/api/erp/v1/...` and `/api/v1/erp/...` endpoints, use the namespaced
 ERP client instead of the raw generated functions. It groups all 40+ ERP
 operations into resources (`companies`, `employees`, `tickets`, ...), returns
-response bodies directly, and throws an `ErpApiError` on non-2xx responses.
+response bodies directly, and throws a `TanssApiError` on non-2xx responses.
 
 > Requires a dedicated API token bound to an external API role of `ERP`,
 > `CENTRON`, or `SYSTEMHAUS_ONE` — a normal user login token will NOT work.
@@ -103,7 +103,7 @@ Rotate the token later with `erp.setToken(nextToken)`.
 
 ### Make requests
 ```ts
-import { createErpClient, ErpApiError } from 'tanss-api'
+import { createErpClient, TanssApiError } from 'tanss-api'
 
 const erp = createErpClient({
   baseUrl: 'https://tanssserver.example.com',
@@ -127,7 +127,7 @@ try {
     // ... TicketSaveWritable fields
   })
 } catch (error) {
-  if (error instanceof ErpApiError) {
+  if (error instanceof TanssApiError) {
     console.error(error.message, error.status, error.body)
   } else {
     throw error
@@ -137,13 +137,39 @@ try {
 
 Available resources: `companies`, `employees`, `departments`, `categories`,
 `types`, `tickets`, `customers` (incl. `invoices`), `accountingTypes`,
-`checklists`, `catalog` (`projects`, `stocks`), and `offers` (ERP selections).
+`checklists`, and `catalog` (`projects`, `stocks`).
 
 Full method reference (regenerated via `bun run docs`): [`docs/erp-client.html`](./docs/erp-client.html).
 
-> `erp.offers` (`/api/v1/offers/erpSelections*`) is the exception: those routes
-> authenticate with a normal user session token, not the ERP-role token. Pass
-> a user token to `createErpClient` when using that resource.
+
+## 🖥️ User-token client
+`/api/v1/...` routes that authenticate with a normal user session token are
+grouped in a separate client, so ERP and user tokens never share an instance.
+It behaves like the ERP client: response bodies are returned directly and
+non-2xx responses throw a `TanssApiError`.
+
+```ts
+import { createTanssClient, postApiV1Login } from 'tanss-api'
+
+const { data } = await postApiV1Login({
+  body: { username: process.env.TANSS_USER!, password: process.env.TANSS_PASS! },
+  baseUrl: 'https://tanssserver.example.com',
+})
+
+const tanss = createTanssClient({
+  baseUrl: 'https://tanssserver.example.com',
+  token: data!.content.apiKey,
+})
+
+// GET + PUT /api/v1/pcs/{pcId}
+const pc = await tanss.devices.pcs.get(123)
+await tanss.devices.pcs.update(123, { ...pc.content, description: 'Updated' })
+```
+
+Available resources: `devices` (`pcs`, `peripheries`, `components`) and
+`offers` (ERP selections).
+
+Full method reference: [`docs/tanss-client.html`](./docs/tanss-client.html).
 
 
 ## 📜 License

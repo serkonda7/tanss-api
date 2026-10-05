@@ -16,20 +16,22 @@ import { type CompaniesResource, createCompaniesResource } from './resources/com
 import { type CustomersResource, createCustomersResource } from './resources/customers'
 import { createDepartmentsResource, type DepartmentsResource } from './resources/departments'
 import { createEmployeesResource, type EmployeesResource } from './resources/employees'
-import { createOffersResource, type OffersResource } from './resources/offers'
 import { createTicketsResource, type TicketsResource } from './resources/tickets'
 
+export { ErpApiError } from '../shared/errors'
 export type { CreateErpClientOptions } from './client'
 export { createErpClientInstance, setErpClientToken } from './client'
-export { ErpApiError } from './errors'
 
 /**
- * Namespaced facade over the generated `/api/erp/v1/...`,
- * `/api/v1/erp/...` and offer `erpSelections` endpoints.
+ * Namespaced facade over the generated `/api/erp/v1/...` and
+ * `/api/v1/erp/...` endpoints, which authenticate with an ERP-role token.
+ *
+ * For `/api/v1/...` routes that need a user session token (devices,
+ * offer ERP selections), use `createTanssClient` instead.
  *
  * Obtain an instance via `createErpClient({ baseUrl, token })`.
  *
- * All methods return the success body directly and throw an `ErpApiError`
+ * All methods return the success body directly and throw a `TanssApiError`
  * on non-2xx responses — no `{ data, error }` union handling required.
  *
  * ```ts
@@ -54,7 +56,6 @@ export class TanssErpClient {
 	readonly customers: CustomersResource
 	readonly accountingTypes: AccountingTypesResource
 	readonly checklists: ChecklistsResource
-	readonly offers: OffersResource
 	readonly catalog: CatalogResource
 
 	/**
@@ -74,7 +75,6 @@ export class TanssErpClient {
 		this.customers = createCustomersResource(client)
 		this.accountingTypes = createAccountingTypesResource(client)
 		this.checklists = createChecklistsResource(client)
-		this.offers = createOffersResource(client)
 		this.catalog = createCatalogResource(client)
 	}
 

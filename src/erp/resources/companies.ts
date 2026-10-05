@@ -21,7 +21,7 @@ import type {
 	PutApiErpV1CompaniesIdData,
 	PutApiErpV1CompaniesIdResponse,
 } from '../../generated/types.gen'
-import { ensureErpData, ensureErpSuccess } from '../errors'
+import { ensureData, ensureSuccess } from '../../shared/errors'
 
 export type CreateCompanyBody = PostApiErpV1CompaniesData['body']
 export type UpdateCompanyBody = PutApiErpV1CompaniesIdData['body']
@@ -37,16 +37,13 @@ export function createCompaniesResource(client: Client) {
 		 * Create a new company (customer) record from ERP master data.
 		 */
 		async create(body: CreateCompanyBody): Promise<PostApiErpV1CompaniesResponse> {
-			return ensureErpData(
-				await postApiErpV1Companies({ body, client }),
-				'erp.companies.create',
-			)
+			return ensureData(await postApiErpV1Companies({ body, client }), 'erp.companies.create')
 		},
 		/**
 		 * Read the company record identified by `id`.
 		 */
 		async get(id: number): Promise<GetApiErpV1CompaniesIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompaniesId({ path: { id }, client }),
 				'erp.companies.get',
 			)
@@ -55,7 +52,7 @@ export function createCompaniesResource(client: Client) {
 		 * Update the company identified by `id` with ERP master-data changes.
 		 */
 		async update(id: number, body: UpdateCompanyBody): Promise<PutApiErpV1CompaniesIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await putApiErpV1CompaniesId({ path: { id }, body, client }),
 				'erp.companies.update',
 			)
@@ -64,7 +61,7 @@ export function createCompaniesResource(client: Client) {
 		 * Delete the company identified by `id` with its dependent data.
 		 */
 		async remove(id: number): Promise<void> {
-			ensureErpSuccess(
+			ensureSuccess(
 				await deleteApiErpV1CompaniesId({ path: { id }, client }),
 				'erp.companies.remove',
 			)
@@ -75,7 +72,7 @@ export function createCompaniesResource(client: Client) {
 		async searchByDisplayId(
 			displayId: string,
 		): Promise<GetApiErpV1CompaniesSearchIdDisplayIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompaniesSearchIdDisplayId({ path: { displayId }, client }),
 				'erp.companies.searchByDisplayId',
 			)
@@ -87,7 +84,7 @@ export function createCompaniesResource(client: Client) {
 		async employees(
 			query?: CompaniesEmployeesQuery,
 		): Promise<GetApiErpV1CompaniesEmployeesResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompaniesEmployees({ query, client }),
 				'erp.companies.employees',
 			)
@@ -96,7 +93,7 @@ export function createCompaniesResource(client: Client) {
 		 * List the company departments (Abteilungen) configured in TANSS.
 		 */
 		async departments(): Promise<GetApiErpV1CompaniesDepartmentsResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompaniesDepartments({ client }),
 				'erp.companies.departments',
 			)
@@ -106,7 +103,7 @@ export function createCompaniesResource(client: Client) {
 		 * employees of the own company.
 		 */
 		async employeesDepartments(): Promise<GetApiErpV1CompaniesEmployeesDepartmentsResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompaniesEmployeesDepartments({ client }),
 				'erp.companies.employeesDepartments',
 			)

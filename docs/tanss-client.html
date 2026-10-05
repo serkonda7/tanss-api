@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TANSS client (createTanssClient) — API reference</title>
+<style>
+:root { color-scheme: light dark; --bg: #fff; --fg: #1a1a1a; --muted: #666; --card: #f6f6f4; --border: #ddd; --accent: #0b5fff; }
+@media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #e8e8e8; --muted: #aaa; --card: #1e1e1e; --border: #333; --accent: #7aa5ff; } }
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); margin: 0; line-height: 1.5; }
+header.top { position: sticky; top: 0; background: var(--bg); border-bottom: 1px solid var(--border); padding: 1rem; z-index: 10; }
+header.top h1 { margin: 0 0 0.25rem; font-size: 1.4rem; }
+header.top p.sub { margin: 0 0 0.75rem; color: var(--muted); }
+.controls { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.controls input[type="search"] { flex: 1; min-width: 200px; padding: 0.5rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.controls button { padding: 0.5rem 0.75rem; cursor: pointer; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--fg); }
+.controls #count { color: var(--muted); font-size: 0.9rem; }
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start; }
+aside.sidebar { position: sticky; top: var(--top, 170px); max-height: calc(100vh - var(--top, 170px)); overflow-y: auto; border-right: 1px solid var(--border); padding: 1rem 0.75rem 2rem 1rem; }
+aside.sidebar nav { display: flex; flex-direction: column; gap: 0.15rem; }
+.side-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.75rem 0 0.25rem; }
+.side-label:first-child { margin-top: 0; }
+.nav-link { display: flex; justify-content: space-between; gap: 0.5rem; text-decoration: none; color: var(--fg); padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.9rem; }
+.nav-link:hover { background: var(--card); }
+.nav-link.active { background: var(--card); outline: 1px solid var(--accent); }
+.nav-link span { color: var(--muted); }
+main { padding: 1rem; max-width: 960px; min-width: 0; }
+main h2, details.resource { scroll-margin-top: calc(var(--top, 170px) + 12px); }
+@media (max-width: 860px) {
+  .layout { display: block; }
+  aside.sidebar { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+  aside.sidebar nav { flex-direction: row; overflow-x: auto; gap: 0.4rem; align-items: center; }
+  .side-label { display: none; }
+  .nav-link { white-space: nowrap; border: 1px solid var(--border); }
+}
+pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; overflow-x: auto; }
+details.resource { border: 1px solid var(--border); border-radius: 8px; margin: 1rem 0; padding: 0 1rem 1rem; }
+details.resource summary { cursor: pointer; padding: 0.75rem 0; font-size: 1.1rem; }
+details.resource summary .count { color: var(--muted); margin-left: 0.5rem; font-size: 0.9rem; }
+details.resource summary .src { display: block; font-size: 0.8rem; color: var(--muted); }
+article.method { border-top: 1px solid var(--border); padding: 0.75rem 0; }
+article.method h4 { margin: 0 0 0.4rem; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+article.method h4 code { overflow-wrap: anywhere; }
+.meta { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+.badge { font-weight: 700; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 4px; color: #fff; }
+.badge.get { background: #2a7f3f; } .badge.post { background: #0b5fff; } .badge.put { background: #b26a00; }
+.badge.del { background: #c0392b; } .badge.patch { background: #6c3483; } .badge.other { background: #666; }
+#empty { padding: 2rem 1rem; color: var(--muted); }
+footer { padding: 1rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); }
+code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<header class="top">
+<h1>TANSS client (<code>createTanssClient</code>)</h1>
+<p class="sub">2 resources, 21 methods. All methods return the success body directly and throw <code>TanssApiError</code> on non-2xx. Regenerate with <code>bun run docs</code>.</p>
+<div class="controls">
+<input id="q" type="search" placeholder="Filter methods, e.g. devices, update, PUT /api/v1/pcs/..." autocomplete="off">
+<button type="button" id="expand">Expand all</button>
+<button type="button" id="collapse">Collapse all</button>
+<span id="count" aria-live="polite"></span>
+</div>
+</header>
+<div class="layout">
+<aside class="sidebar"><nav aria-label="Page navigation">
+<div class="side-label">Guide</div>
+<a class="nav-link" href="#usage" data-target="usage">Usage</a>
+<a class="nav-link" href="#options" data-target="options">createTanssClient(options)</a>
+<a class="nav-link" href="#errors" data-target="errors">TanssApiError</a>
+<div class="side-label">Resources</div>
+<a class="nav-link" href="#tanss-devices" data-target="tanss-devices"><code>tanss.devices</code><span>15</span></a>
+<a class="nav-link" href="#tanss-offers" data-target="tanss-offers"><code>tanss.offers</code><span>6</span></a></nav></aside>
+<main>
+<h2 id="usage">Usage</h2>
+<pre><code>import { createTanssClient } from 'tanss-api'
+
+const tanss = createTanssClient({
+  baseUrl: 'https://tanss.example.com',
+  token: apiKey, // user session token from postApiV1Login, incl. Bearer prefix
+})
+
+const pc = await tanss.devices.pcs.get(123)
+await tanss.devices.pcs.update(123, { ...pc.content, description: 'Updated' })
+tanss.setToken(nextToken) // re-login without rebuilding</code></pre>
+<h2 id="options">createTanssClient(options)</h2>
+<p>Isolated hey-api instance (no shared <code>client</code> singleton, so ERP tokens cannot leak into user requests).</p>
+<pre><code>interface CreateTanssClientOptions {
+/**
+	 * Hostname of the TANSS instance, e.g. `https://tanss.example.com`.
+	 */
+	baseUrl: string
+	/**
+	 * User session token, sent verbatim in the `apiToken` header
+	 * (including the `Bearer ` prefix), e.g. the `apiKey` returned by
+	 * `postApiV1Login`.
+	 *
+	 * ERP-role tokens will NOT work for these routes; use `createErpClient`
+	 * for the `/api/erp/v1/...` endpoints instead.
+	 */
+	token: string
+	/**
+	 * Custom fetch implementation. Defaults to `globalThis.fetch`.
+	 */
+	fetch?: typeof fetch
+	/**
+	 * Extra hey-api client config merged over the defaults.
+	 */
+	config?: Omit&lt;Config, 'baseUrl' | 'auth' | 'fetch'&gt;
+}</code></pre>
+<h2 id="errors">TanssApiError</h2>
+<p>Thrown on any non-2xx response. Fields: <code>message</code>, <code>status?</code>, <code>body</code>, <code>request?</code>, <code>response?</code>. Catch with <code>error instanceof TanssApiError</code>.</p>
+<p><strong>Note:</strong> <code>/api/erp/v1/...</code> routes need an ERP-role token and live on <code>createErpClient</code> (<a href="./erp-client.html">reference</a>).</p>
+<h2 id="resources">Resources</h2>
+<details class="resource" id="tanss-devices" open>
+<summary><code>tanss.devices</code><span class="count">15 methods</span><span class="src">src/tanss/resources/devices.ts</span></summary>
+<p>Device management (`/api/v1/pcs`, `/api/v1/peripheries`,<br>`/api/v1/components`): CRUD and filtered lists for pcs/servers,<br>peripheries and components.</p>
+<article class="method" data-search="tanss.devices.pcs.list(body: pcslistbody): promise&lt;putapiv1pcsresponse&gt; list pcs/servers matching the given filter configuration. putapiv1pcs put /api/v1/pcs">
+<h4><code>tanss.devices.pcs.list(body: PcsListBody): Promise&lt;PutApiV1PcsResponse&gt;</code></h4>
+<p>List pcs/servers matching the given filter configuration.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/pcs</code></span><span class="sdk">SDK: <code>putApiV1Pcs</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.pcs.get(pcid: number): promise&lt;getapiv1pcspcidresponse&gt; read the pc/server identified by `pcid`. getapiv1pcspcid get /api/v1/pcs/{pcid}">
+<h4><code>tanss.devices.pcs.get(pcId: number): Promise&lt;GetApiV1PcsPcIdResponse&gt;</code></h4>
+<p>Read the pc/server identified by `pcId`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/pcs/{pcId}</code></span><span class="sdk">SDK: <code>getApiV1PcsPcId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.pcs.create(body: createpcbody): promise&lt;postapiv1pcsresponse&gt; create a pc/server, including attached ip addresses and guarantee. postapiv1pcs post /api/v1/pcs">
+<h4><code>tanss.devices.pcs.create(body: CreatePcBody): Promise&lt;PostApiV1PcsResponse&gt;</code></h4>
+<p>Create a pc/server, including attached ip addresses and guarantee.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/v1/pcs</code></span><span class="sdk">SDK: <code>postApiV1Pcs</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.pcs.update(pcid: number, body: updatepcbody): promise&lt;putapiv1pcspcidresponse&gt; update the pc/server identified by `pcid`, including attached ip
+addresses and guarantee. putapiv1pcspcid put /api/v1/pcs/{pcid}">
+<h4><code>tanss.devices.pcs.update(pcId: number, body: UpdatePcBody): Promise&lt;PutApiV1PcsPcIdResponse&gt;</code></h4>
+<p>Update the pc/server identified by `pcId`, including attached ip<br>addresses and guarantee.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/pcs/{pcId}</code></span><span class="sdk">SDK: <code>putApiV1PcsPcId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.pcs.remove(pcid: number): promise&lt;void&gt; delete the pc/server identified by `pcid`. deleteapiv1pcspcid delete /api/v1/pcs/{pcid}">
+<h4><code>tanss.devices.pcs.remove(pcId: number): Promise&lt;void&gt;</code></h4>
+<p>Delete the pc/server identified by `pcId`.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/v1/pcs/{pcId}</code></span><span class="sdk">SDK: <code>deleteApiV1PcsPcId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.peripheries.list(body: peripherieslistbody): promise&lt;putapiv1peripheriesresponse&gt; list peripheries matching the given filter configuration. putapiv1peripheries put /api/v1/peripheries">
+<h4><code>tanss.devices.peripheries.list(body: PeripheriesListBody): Promise&lt;PutApiV1PeripheriesResponse&gt;</code></h4>
+<p>List peripheries matching the given filter configuration.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/peripheries</code></span><span class="sdk">SDK: <code>putApiV1Peripheries</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.peripheries.get(peripheryid: number): promise&lt;getapiv1peripheriesperipheryidresponse&gt; read the periphery identified by `peripheryid`. getapiv1peripheriesperipheryid get /api/v1/peripheries/{peripheryid}">
+<h4><code>tanss.devices.peripheries.get(peripheryId: number): Promise&lt;GetApiV1PeripheriesPeripheryIdResponse&gt;</code></h4>
+<p>Read the periphery identified by `peripheryId`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/peripheries/{peripheryId}</code></span><span class="sdk">SDK: <code>getApiV1PeripheriesPeripheryId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.peripheries.create(body: createperipherybody): promise&lt;postapiv1peripheriesresponse&gt; create a periphery, including attached ip addresses and guarantee. postapiv1peripheries post /api/v1/peripheries">
+<h4><code>tanss.devices.peripheries.create(body: CreatePeripheryBody): Promise&lt;PostApiV1PeripheriesResponse&gt;</code></h4>
+<p>Create a periphery, including attached ip addresses and guarantee.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/v1/peripheries</code></span><span class="sdk">SDK: <code>postApiV1Peripheries</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.peripheries.update(peripheryid: number, body: updateperipherybody): promise&lt;putapiv1peripheriesperipheryidresponse&gt; update the periphery identified by `peripheryid`, including attached
+ip addresses and guarantee. putapiv1peripheriesperipheryid put /api/v1/peripheries/{peripheryid}">
+<h4><code>tanss.devices.peripheries.update(peripheryId: number, body: UpdatePeripheryBody): Promise&lt;PutApiV1PeripheriesPeripheryIdResponse&gt;</code></h4>
+<p>Update the periphery identified by `peripheryId`, including attached<br>ip addresses and guarantee.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/peripheries/{peripheryId}</code></span><span class="sdk">SDK: <code>putApiV1PeripheriesPeripheryId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.peripheries.remove(peripheryid: number): promise&lt;void&gt; delete the periphery identified by `peripheryid`. deleteapiv1peripheriesperipheryid delete /api/v1/peripheries/{peripheryid}">
+<h4><code>tanss.devices.peripheries.remove(peripheryId: number): Promise&lt;void&gt;</code></h4>
+<p>Delete the periphery identified by `peripheryId`.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/v1/peripheries/{peripheryId}</code></span><span class="sdk">SDK: <code>deleteApiV1PeripheriesPeripheryId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.components.list(body: componentslistbody): promise&lt;putapiv1componentsresponse&gt; list components matching the given filter configuration. putapiv1components put /api/v1/components">
+<h4><code>tanss.devices.components.list(body: ComponentsListBody): Promise&lt;PutApiV1ComponentsResponse&gt;</code></h4>
+<p>List components matching the given filter configuration.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/components</code></span><span class="sdk">SDK: <code>putApiV1Components</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.components.get(componentid: number): promise&lt;getapiv1componentscomponentidresponse&gt; read the component identified by `componentid`. getapiv1componentscomponentid get /api/v1/components/{componentid}">
+<h4><code>tanss.devices.components.get(componentId: number): Promise&lt;GetApiV1ComponentsComponentIdResponse&gt;</code></h4>
+<p>Read the component identified by `componentId`.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/components/{componentId}</code></span><span class="sdk">SDK: <code>getApiV1ComponentsComponentId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.components.create(body: createcomponentbody): promise&lt;postapiv1componentsresponse&gt; create a new component. postapiv1components post /api/v1/components">
+<h4><code>tanss.devices.components.create(body: CreateComponentBody): Promise&lt;PostApiV1ComponentsResponse&gt;</code></h4>
+<p>Create a new component.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/v1/components</code></span><span class="sdk">SDK: <code>postApiV1Components</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.components.update(componentid: number, body: updatecomponentbody): promise&lt;putapiv1componentscomponentidresponse&gt; update the component identified by `componentid`. putapiv1componentscomponentid put /api/v1/components/{componentid}">
+<h4><code>tanss.devices.components.update(componentId: number, body: UpdateComponentBody): Promise&lt;PutApiV1ComponentsComponentIdResponse&gt;</code></h4>
+<p>Update the component identified by `componentId`.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/components/{componentId}</code></span><span class="sdk">SDK: <code>putApiV1ComponentsComponentId</code></span></div>
+</article>
+<article class="method" data-search="tanss.devices.components.remove(componentid: number): promise&lt;void&gt; delete the component identified by `componentid`. deleteapiv1componentscomponentid delete /api/v1/components/{componentid}">
+<h4><code>tanss.devices.components.remove(componentId: number): Promise&lt;void&gt;</code></h4>
+<p>Delete the component identified by `componentId`.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/v1/components/{componentId}</code></span><span class="sdk">SDK: <code>deleteApiV1ComponentsComponentId</code></span></div>
+</article>
+</details>
+<details class="resource" id="tanss-offers" open>
+<summary><code>tanss.offers</code><span class="count">6 methods</span><span class="src">src/tanss/resources/offers.ts</span></summary>
+<p>Offer ERP selections (`/api/v1/offers/erpSelections*`): material<br>selections used in offer templates.</p>
+<article class="method" data-search="tanss.offers.create(body: createerpselectionbody): promise&lt;postapiv1offerserpselectionsresponse&gt; create a new erp selection including its materials. postapiv1offerserpselections post /api/v1/offers/erpselections">
+<h4><code>tanss.offers.create(body: CreateErpSelectionBody): Promise&lt;PostApiV1OffersErpSelectionsResponse&gt;</code></h4>
+<p>Create a new ERP selection including its materials.</p>
+<div class="meta"><span class="ep"><span class="badge post">POST</span><code>/api/v1/offers/erpSelections</code></span><span class="sdk">SDK: <code>postApiV1OffersErpSelections</code></span></div>
+</article>
+<article class="method" data-search="tanss.offers.get(erpselectionid: number): promise&lt;getapiv1offerserpselectionserpselectionidresponse&gt; fetch an erp selection (including material) by id. getapiv1offerserpselectionserpselectionid get /api/v1/offers/erpselections/{erpselectionid}">
+<h4><code>tanss.offers.get(erpSelectionId: number): Promise&lt;GetApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
+<p>Fetch an ERP selection (including material) by id.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsErpSelectionId</code></span></div>
+</article>
+<article class="method" data-search="tanss.offers.update(erpselectionid: number, body: updateerpselectionbody): promise&lt;putapiv1offerserpselectionserpselectionidresponse&gt; update an erp selection and save all attached materials. putapiv1offerserpselectionserpselectionid put /api/v1/offers/erpselections/{erpselectionid}">
+<h4><code>tanss.offers.update(erpSelectionId: number, body: UpdateErpSelectionBody): Promise&lt;PutApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
+<p>Update an ERP selection and save all attached materials.</p>
+<div class="meta"><span class="ep"><span class="badge put">PUT</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>putApiV1OffersErpSelectionsErpSelectionId</code></span></div>
+</article>
+<article class="method" data-search="tanss.offers.remove(erpselectionid: number): promise&lt;deleteapiv1offerserpselectionserpselectionidresponse&gt; delete an erp selection. deleteapiv1offerserpselectionserpselectionid delete /api/v1/offers/erpselections/{erpselectionid}">
+<h4><code>tanss.offers.remove(erpSelectionId: number): Promise&lt;DeleteApiV1OffersErpSelectionsErpSelectionIdResponse&gt;</code></h4>
+<p>Delete an ERP selection.</p>
+<div class="meta"><span class="ep"><span class="badge del">DELETE</span><code>/api/v1/offers/erpSelections/{erpSelectionId}</code></span><span class="sdk">SDK: <code>deleteApiV1OffersErpSelectionsErpSelectionId</code></span></div>
+</article>
+<article class="method" data-search="tanss.offers.matpicker(query: matpickerquery): promise&lt;getapiv1offerserpselectionsmatpickerresponse&gt; list materials for the material picker. getapiv1offerserpselectionsmatpicker get /api/v1/offers/erpselections/matpicker">
+<h4><code>tanss.offers.matPicker(query: MatPickerQuery): Promise&lt;GetApiV1OffersErpSelectionsMatPickerResponse&gt;</code></h4>
+<p>List materials for the &quot;material picker&quot;.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/matPicker</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsMatPicker</code></span></div>
+</article>
+<article class="method" data-search="tanss.offers.matpickerbyselection(erpselectionid: number): promise&lt;getapiv1offerserpselectionsmatpickererpselectionidresponse&gt; list materials of the picker scoped to a given erp selection. getapiv1offerserpselectionsmatpickererpselectionid get /api/v1/offers/erpselections/matpicker/{erpselectionid}">
+<h4><code>tanss.offers.matPickerBySelection(erpSelectionId: number): Promise&lt;GetApiV1OffersErpSelectionsMatPickerErpSelectionIdResponse&gt;</code></h4>
+<p>List materials of the picker scoped to a given ERP selection.</p>
+<div class="meta"><span class="ep"><span class="badge get">GET</span><code>/api/v1/offers/erpSelections/matPicker/{erpSelectionId}</code></span><span class="sdk">SDK: <code>getApiV1OffersErpSelectionsMatPickerErpSelectionId</code></span></div>
+</article>
+</details>
+<p id="empty" hidden>No methods match the current filter.</p>
+</main>
+</div>
+<footer>DO NOT EDIT — generated by <code>bun run docs</code>. Edit JSDoc in <code>src/tanss/**/*.ts</code> instead. Raw generated SDK (<code>src/generated/sdk.gen.ts</code>, 850+ functions) is documented via JSDoc/OpenAPI, not here.</footer>
+<script>
+const q = document.getElementById('q');
+const methods = Array.from(document.querySelectorAll('.method'));
+const sections = Array.from(document.querySelectorAll('details.resource'));
+const empty = document.getElementById('empty');
+const count = document.getElementById('count');
+function apply() {
+  const needle = q.value.trim().toLowerCase();
+  let visible = 0;
+  for (const m of methods) {
+    const hay = m.getAttribute('data-search') || '';
+    const hit = !needle || hay.includes(needle);
+    m.hidden = !hit;
+    if (hit) visible++;
+  }
+  for (const s of sections) {
+    const cards = Array.from(s.querySelectorAll('.method'));
+    const any = cards.some((m) => !m.hidden);
+    s.hidden = !any;
+    if (needle && any) s.open = true;
+  }
+  count.textContent = visible + ' of ' + methods.length + ' methods';
+  empty.hidden = visible !== 0;
+}
+q.addEventListener('input', apply);
+apply();
+function setTop() {
+  const h = document.querySelector('header.top');
+  if (h) document.documentElement.style.setProperty('--top', h.offsetHeight + 8 + 'px');
+}
+setTop();
+window.addEventListener('resize', setTop);
+const links = Array.from(document.querySelectorAll('.nav-link'));
+const targets = links
+  .map((a) => document.getElementById(a.getAttribute('data-target') || ''))
+  .filter((el) => el);
+function spy() {
+  const top = (document.querySelector('header.top') || { offsetHeight: 170 }).offsetHeight + 24;
+  let current = '';
+  for (const el of targets) {
+    if (el.getBoundingClientRect().top <= top) current = el.id;
+  }
+  for (const a of links) {
+    const on = a.getAttribute('data-target') === current;
+    if (on) a.classList.add('active');
+    else a.classList.remove('active');
+  }
+}
+document.addEventListener('scroll', spy, { passive: true });
+spy();
+document.getElementById('expand').addEventListener('click', () => {
+  for (const s of sections) {
+    if (!s.hidden) s.open = true;
+  }
+});
+document.getElementById('collapse').addEventListener('click', () => {
+  for (const s of sections) s.open = false;
+});
+</script>
+</body>
+</html>

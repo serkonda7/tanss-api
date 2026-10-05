@@ -18,7 +18,7 @@ import type {
 	PutApiV1OffersErpSelectionsErpSelectionIdData,
 	PutApiV1OffersErpSelectionsErpSelectionIdResponse,
 } from '../../generated/types.gen'
-import { ensureErpData, ensureErpSuccess } from '../errors'
+import { ensureData, ensureSuccess } from '../../shared/errors'
 
 export type CreateErpSelectionBody = PostApiV1OffersErpSelectionsData['body']
 export type UpdateErpSelectionBody = PutApiV1OffersErpSelectionsErpSelectionIdData['body']
@@ -27,10 +27,6 @@ export type MatPickerQuery = GetApiV1OffersErpSelectionsMatPickerData['query']
 /**
  * Offer ERP selections (`/api/v1/offers/erpSelections*`): material
  * selections used in offer templates.
- *
- * Note: unlike `/api/erp/v1/...`, these routes authenticate with a normal
- * user session token (`ApiTokenAuth`), not the ERP-role token. Pass a user
- * token to `createErpClient` when using this resource.
  */
 export function createOffersResource(client: Client) {
 	return {
@@ -38,9 +34,9 @@ export function createOffersResource(client: Client) {
 		 * Create a new ERP selection including its materials.
 		 */
 		async create(body: CreateErpSelectionBody): Promise<PostApiV1OffersErpSelectionsResponse> {
-			return ensureErpData(
+			return ensureData(
 				await postApiV1OffersErpSelections({ body, client }),
-				'erp.offers.create',
+				'tanss.offers.create',
 			)
 		},
 		/**
@@ -49,12 +45,12 @@ export function createOffersResource(client: Client) {
 		async get(
 			erpSelectionId: number,
 		): Promise<GetApiV1OffersErpSelectionsErpSelectionIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiV1OffersErpSelectionsErpSelectionId({
 					path: { erpSelectionId },
 					client,
 				}),
-				'erp.offers.get',
+				'tanss.offers.get',
 			)
 		},
 		/**
@@ -64,13 +60,13 @@ export function createOffersResource(client: Client) {
 			erpSelectionId: number,
 			body: UpdateErpSelectionBody,
 		): Promise<PutApiV1OffersErpSelectionsErpSelectionIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await putApiV1OffersErpSelectionsErpSelectionId({
 					path: { erpSelectionId },
 					body,
 					client,
 				}),
-				'erp.offers.update',
+				'tanss.offers.update',
 			)
 		},
 		/**
@@ -84,7 +80,7 @@ export function createOffersResource(client: Client) {
 				path: { erpSelectionId },
 				client,
 			})
-			ensureErpSuccess(result, 'erp.offers.remove')
+			ensureSuccess(result, 'tanss.offers.remove')
 			return result.data as DeleteApiV1OffersErpSelectionsErpSelectionIdResponse
 		},
 		/**
@@ -93,9 +89,9 @@ export function createOffersResource(client: Client) {
 		async matPicker(
 			query: MatPickerQuery,
 		): Promise<GetApiV1OffersErpSelectionsMatPickerResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiV1OffersErpSelectionsMatPicker({ query, client }),
-				'erp.offers.matPicker',
+				'tanss.offers.matPicker',
 			)
 		},
 		/**
@@ -104,12 +100,12 @@ export function createOffersResource(client: Client) {
 		async matPickerBySelection(
 			erpSelectionId: number,
 		): Promise<GetApiV1OffersErpSelectionsMatPickerErpSelectionIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiV1OffersErpSelectionsMatPickerErpSelectionId({
 					path: { erpSelectionId },
 					client,
 				}),
-				'erp.offers.matPickerBySelection',
+				'tanss.offers.matPickerBySelection',
 			)
 		},
 	}

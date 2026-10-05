@@ -2,10 +2,85 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(import.meta.dir, '..')
-const ERP_DIR = join(ROOT, 'src', 'erp')
-const RESOURCES_DIR = join(ERP_DIR, 'resources')
 const SDK_GEN = join(ROOT, 'src', 'generated', 'sdk.gen.ts')
-const OUT_FILE = join(ROOT, 'docs', 'erp-client.html')
+
+interface DocTarget {
+	/** Directory below `src/` holding `client.ts` and `resources/`. */
+	dir: string
+	/** Variable name used in signatures and anchors, e.g. `erp`. */
+	varName: string
+	factoryFn: string
+	optionsInterface: string
+	title: string
+	outFile: string
+	placeholder: string
+	usage: string
+	optionsNote: string
+	note: string
+	propertyByFactory: Record<string, string>
+}
+
+const TARGETS: DocTarget[] = [
+	{
+		dir: 'erp',
+		varName: 'erp',
+		factoryFn: 'createErpClient',
+		optionsInterface: 'CreateErpClientOptions',
+		title: 'ERP client',
+		outFile: 'erp-client.html',
+		placeholder: 'Filter methods, e.g. companies, upload, POST /api/erp/v1/...',
+		usage: `import { createErpClient } from 'tanss-api'
+
+const erp = createErpClient({
+  baseUrl: 'https://tanss.example.com',
+  token: process.env.TANSS_ERP_TOKEN!, // ERP/CENTRON/SYSTEMHAUS_ONE role, incl. Bearer prefix
+})
+
+const company = await erp.companies.get(42)
+erp.setToken(nextToken) // rotate without rebuilding`,
+		optionsNote:
+			'Isolated hey-api instance (no shared <code>client</code> singleton, so user tokens cannot leak into ERP requests).',
+		note: '<p><strong>Note:</strong> <code>/api/v1/...</code> routes that need a normal user session token (devices, offer ERP selections) live on <code>createTanssClient</code> (<a href="./tanss-client.html">reference</a>).</p>',
+		propertyByFactory: {
+			createAccountingTypesResource: 'accountingTypes',
+			createCatalogResource: 'catalog',
+			createCategoriesResource: 'categories',
+			createCompanyTypesResource: 'types',
+			createChecklistsResource: 'checklists',
+			createCompaniesResource: 'companies',
+			createCustomersResource: 'customers',
+			createDepartmentsResource: 'departments',
+			createEmployeesResource: 'employees',
+			createTicketsResource: 'tickets',
+		},
+	},
+	{
+		dir: 'tanss',
+		varName: 'tanss',
+		factoryFn: 'createTanssClient',
+		optionsInterface: 'CreateTanssClientOptions',
+		title: 'TANSS client',
+		outFile: 'tanss-client.html',
+		placeholder: 'Filter methods, e.g. devices, update, PUT /api/v1/pcs/...',
+		usage: `import { createTanssClient } from 'tanss-api'
+
+const tanss = createTanssClient({
+  baseUrl: 'https://tanss.example.com',
+  token: apiKey, // user session token from postApiV1Login, incl. Bearer prefix
+})
+
+const pc = await tanss.devices.pcs.get(123)
+await tanss.devices.pcs.update(123, { ...pc.content, description: 'Updated' })
+tanss.setToken(nextToken) // re-login without rebuilding`,
+		optionsNote:
+			'Isolated hey-api instance (no shared <code>client</code> singleton, so ERP tokens cannot leak into user requests).',
+		note: '<p><strong>Note:</strong> <code>/api/erp/v1/...</code> routes need an ERP-role token and live on <code>createErpClient</code> (<a href="./erp-client.html">reference</a>).</p>',
+		propertyByFactory: {
+			createDevicesResource: 'devices',
+			createOffersResource: 'offers',
+		},
+	},
+]
 
 interface SdkEndpoint {
 	method: string
@@ -49,8 +124,8 @@ function parseSdkEndpoints(): Map<string, SdkEndpoint> {
 	return map
 }
 
-function parseResourceFile(file: string): Resource[] {
-	const src = readFileSync(join(RESOURCES_DIR, file), 'utf8')
+function parseResourceFile(target: DocTarget, file: string): Resource[] {
+	const src = readFileSync(join(ROOT, 'src', target.dir, 'resources', file), 'utf8')
 	// One file may export multiple factories (e.g. categories.ts exports
 	// createCategoriesResource + createCompanyTypesResource).
 	const factoryStarts: { factory: string; index: number; doc: string }[] = []
@@ -114,17 +189,19 @@ function parseResourceFile(file: string): Resource[] {
 		}
 		return {
 			factory: f.factory,
-			property: PROPERTY_BY_FACTORY[f.factory] ?? f.factory,
+			property: target.propertyByFactory[f.factory] ?? f.factory,
 			doc: f.doc,
-			file: `src/erp/resources/${file}`,
+			file: `src/${target.dir}/resources/${file}`,
 			methods,
 		}
 	})
 }
 
-function parseClientOptions(): string {
-	const src = readFileSync(join(ERP_DIR, 'client.ts'), 'utf8')
-	const match = src.match(/export interface CreateErpClientOptions \{([\s\S]*?)\n\}/)
+function parseClientOptions(target: DocTarget): string {
+	const src = readFileSync(join(ROOT, 'src', target.dir, 'client.ts'), 'utf8')
+	const match = src.match(
+		new RegExp(`export interface ${target.optionsInterface} \\{([\\s\\S]*?)\\n\\}`),
+	)
 	if (!match) {
 		return ''
 	}
@@ -133,20 +210,6 @@ function parseClientOptions(): string {
 		.map((l) => l.trimEnd())
 		.join('\n')
 		.trim()
-}
-
-const PROPERTY_BY_FACTORY: Record<string, string> = {
-	createAccountingTypesResource: 'accountingTypes',
-	createCatalogResource: 'catalog',
-	createCategoriesResource: 'categories',
-	createCompanyTypesResource: 'types',
-	createChecklistsResource: 'checklists',
-	createCompaniesResource: 'companies',
-	createCustomersResource: 'customers',
-	createDepartmentsResource: 'departments',
-	createEmployeesResource: 'employees',
-	createOffersResource: 'offers',
-	createTicketsResource: 'tickets',
 }
 
 function escapeHtml(s: string): string {
@@ -172,19 +235,19 @@ const METHOD_CLASS: Record<string, string> = {
 	PATCH: 'patch',
 }
 
-function main(): void {
-	const endpoints = parseSdkEndpoints()
-	const files = readdirSync(RESOURCES_DIR)
+function generate(target: DocTarget, endpoints: Map<string, SdkEndpoint>): void {
+	const v = target.varName
+	const files = readdirSync(join(ROOT, 'src', target.dir, 'resources'))
 		.filter((f) => f.endsWith('.ts'))
 		.sort()
-	const resources: Resource[] = files.flatMap((file) => parseResourceFile(file))
+	const resources: Resource[] = files.flatMap((file) => parseResourceFile(target, file))
 	const totalMethods = resources.reduce((n, r) => n + r.methods.length, 0)
-	const optionsBlock = parseClientOptions()
+	const optionsBlock = parseClientOptions(target)
 
 	const nav = resources
 		.map(
 			(r) =>
-				`<a class="nav-link" href="#erp-${r.property}" data-target="erp-${r.property}"><code>erp.${r.property}</code><span>${r.methods.length}</span></a>`,
+				`<a class="nav-link" href="#${v}-${r.property}" data-target="${v}-${r.property}"><code>${v}.${r.property}</code><span>${r.methods.length}</span></a>`,
 		)
 		.join('\n')
 
@@ -195,7 +258,7 @@ function main(): void {
 					const ep = m.sdkFn ? endpoints.get(m.sdkFn) : undefined
 					const methodClass = ep ? (METHOD_CLASS[ep.method] ?? 'other') : 'other'
 					const search =
-						`erp.${r.property}.${m.signature} ${m.doc} ${m.sdkFn ?? ''} ${ep ? `${ep.method} ${ep.url}` : ''}`
+						`${v}.${r.property}.${m.signature} ${m.doc} ${m.sdkFn ?? ''} ${ep ? `${ep.method} ${ep.url}` : ''}`
 							.toLowerCase()
 							.replace(/"/g, '')
 					const endpoint = ep
@@ -204,7 +267,7 @@ function main(): void {
 					const sdk = m.sdkFn
 						? `<span class="sdk">SDK: <code>${m.sdkFn}</code></span>`
 						: ''
-					const fullSig = `erp.${r.property}.${m.signature}`
+					const fullSig = `${v}.${r.property}.${m.signature}`
 					return `<article class="method" data-search="${escapeHtml(search)}">
 <h4><code>${escapeHtml(fullSig)}</code></h4>
 ${m.doc ? renderDoc(m.doc) : ''}
@@ -212,8 +275,8 @@ ${m.doc ? renderDoc(m.doc) : ''}
 </article>`
 				})
 				.join('\n')
-			return `<details class="resource" id="erp-${r.property}" open>
-<summary><code>erp.${r.property}</code><span class="count">${r.methods.length} methods</span><span class="src">${r.file}</span></summary>
+			return `<details class="resource" id="${v}-${r.property}" open>
+<summary><code>${v}.${r.property}</code><span class="count">${r.methods.length} methods</span><span class="src">${r.file}</span></summary>
 ${r.doc ? renderDoc(r.doc) : ''}
 ${cards}
 </details>`
@@ -225,7 +288,7 @@ ${cards}
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ERP client (createErpClient) — API reference</title>
+<title>${target.title} (${target.factoryFn}) — API reference</title>
 <style>
 :root { color-scheme: light dark; --bg: #fff; --fg: #1a1a1a; --muted: #666; --card: #f6f6f4; --border: #ddd; --accent: #0b5fff; }
 @media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #e8e8e8; --muted: #aaa; --card: #1e1e1e; --border: #333; --accent: #7aa5ff; } }
@@ -275,10 +338,10 @@ code { font-family: ui-monospace, monospace; }
 </head>
 <body>
 <header class="top">
-<h1>ERP client (<code>createErpClient</code>)</h1>
-<p class="sub">${resources.length} resources, ${totalMethods} methods. All methods return the success body directly and throw <code>ErpApiError</code> on non-2xx. Regenerate with <code>bun run docs</code>.</p>
+<h1>${target.title} (<code>${target.factoryFn}</code>)</h1>
+<p class="sub">${resources.length} resources, ${totalMethods} methods. All methods return the success body directly and throw <code>TanssApiError</code> on non-2xx. Regenerate with <code>bun run docs</code>.</p>
 <div class="controls">
-<input id="q" type="search" placeholder="Filter methods, e.g. companies, upload, POST /api/erp/v1/..." autocomplete="off">
+<input id="q" type="search" placeholder="${target.placeholder}" autocomplete="off">
 <button type="button" id="expand">Expand all</button>
 <button type="button" id="collapse">Collapse all</button>
 <span id="count" aria-live="polite"></span>
@@ -288,35 +351,27 @@ code { font-family: ui-monospace, monospace; }
 <aside class="sidebar"><nav aria-label="Page navigation">
 <div class="side-label">Guide</div>
 <a class="nav-link" href="#usage" data-target="usage">Usage</a>
-<a class="nav-link" href="#options" data-target="options">createErpClient(options)</a>
-<a class="nav-link" href="#errors" data-target="errors">ErpApiError</a>
+<a class="nav-link" href="#options" data-target="options">${target.factoryFn}(options)</a>
+<a class="nav-link" href="#errors" data-target="errors">TanssApiError</a>
 <div class="side-label">Resources</div>
 ${nav}</nav></aside>
 <main>
 <h2 id="usage">Usage</h2>
-<pre><code>import { createErpClient } from 'tanss-api'
-
-const erp = createErpClient({
-  baseUrl: 'https://tanss.example.com',
-  token: process.env.TANSS_ERP_TOKEN!, // ERP/CENTRON/SYSTEMHAUS_ONE role, incl. Bearer prefix
-})
-
-const company = await erp.companies.get(42)
-erp.setToken(nextToken) // rotate without rebuilding</code></pre>
-<h2 id="options">createErpClient(options)</h2>
-<p>Isolated hey-api instance (no shared <code>client</code> singleton, so user tokens cannot leak into ERP requests).</p>
-<pre><code>interface CreateErpClientOptions {
+<pre><code>${escapeHtml(target.usage)}</code></pre>
+<h2 id="options">${target.factoryFn}(options)</h2>
+<p>${target.optionsNote}</p>
+<pre><code>interface ${target.optionsInterface} {
 ${escapeHtml(optionsBlock)}
 }</code></pre>
-<h2 id="errors">ErpApiError</h2>
-<p>Thrown on any non-2xx response. Fields: <code>message</code>, <code>status?</code>, <code>body</code>, <code>request?</code>, <code>response?</code>. Catch with <code>error instanceof ErpApiError</code>.</p>
-<p><strong>Note:</strong> <code>erp.offers</code> (<code>/api/v1/offers/erpSelections*</code>) uses a normal user session token, not the ERP-role token.</p>
+<h2 id="errors">TanssApiError</h2>
+<p>Thrown on any non-2xx response. Fields: <code>message</code>, <code>status?</code>, <code>body</code>, <code>request?</code>, <code>response?</code>. Catch with <code>error instanceof TanssApiError</code>.</p>
+${target.note}
 <h2 id="resources">Resources</h2>
 ${sections}
 <p id="empty" hidden>No methods match the current filter.</p>
 </main>
 </div>
-<footer>DO NOT EDIT — generated by <code>bun run docs</code>. Edit JSDoc in <code>src/erp/**/*.ts</code> instead. Raw generated SDK (<code>src/generated/sdk.gen.ts</code>, 850+ functions) is documented via JSDoc/OpenAPI, not here.</footer>
+<footer>DO NOT EDIT — generated by <code>bun run docs</code>. Edit JSDoc in <code>src/${target.dir}/**/*.ts</code> instead. Raw generated SDK (<code>src/generated/sdk.gen.ts</code>, 850+ functions) is documented via JSDoc/OpenAPI, not here.</footer>
 <script>
 const q = document.getElementById('q');
 const methods = Array.from(document.querySelectorAll('.method'));
@@ -380,8 +435,16 @@ document.getElementById('collapse').addEventListener('click', () => {
 </html>
 `
 	mkdirSync(join(ROOT, 'docs'), { recursive: true })
-	writeFileSync(OUT_FILE, `${html.trimEnd()}\n`)
-	console.log(`Wrote ${OUT_FILE}: ${resources.length} resources, ${totalMethods} methods`)
+	const outFile = join(ROOT, 'docs', target.outFile)
+	writeFileSync(outFile, `${html.trimEnd()}\n`)
+	console.log(`Wrote ${outFile}: ${resources.length} resources, ${totalMethods} methods`)
+}
+
+function main(): void {
+	const endpoints = parseSdkEndpoints()
+	for (const target of TARGETS) {
+		generate(target, endpoints)
+	}
 }
 
 main()

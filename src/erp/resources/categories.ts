@@ -25,7 +25,7 @@ import type {
 	PutApiErpV1TypesTypeIdData,
 	PutApiErpV1TypesTypeIdResponse,
 } from '../../generated/types.gen'
-import { ensureErpData, ensureErpSuccess } from '../errors'
+import { ensureData, ensureSuccess } from '../../shared/errors'
 
 export type CreateCompanyCategoryBody = PostApiErpV1CompanyCategoriesCategoryIdData['body']
 export type UpdateCompanyCategoryBody = PutApiErpV1CompanyCategoriesCategoryIdData['body']
@@ -42,16 +42,13 @@ export function createCategoriesResource(client: Client) {
 		 * List all company categories with their associated company types.
 		 */
 		async list(): Promise<GetApiErpV1CompanyCategoriesResponse> {
-			return ensureErpData(
-				await getApiErpV1CompanyCategories({ client }),
-				'erp.categories.list',
-			)
+			return ensureData(await getApiErpV1CompanyCategories({ client }), 'erp.categories.list')
 		},
 		/**
 		 * Read the single company category identified by `categoryId`.
 		 */
 		async get(categoryId: number): Promise<GetApiErpV1CompanyCategoriesCategoryIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompanyCategoriesCategoryId({ path: { categoryId }, client }),
 				'erp.categories.get',
 			)
@@ -63,7 +60,7 @@ export function createCategoriesResource(client: Client) {
 			categoryId: string,
 			body: CreateCompanyCategoryBody,
 		): Promise<PostApiErpV1CompanyCategoriesCategoryIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await postApiErpV1CompanyCategoriesCategoryId({
 					path: { categoryId },
 					body,
@@ -79,7 +76,7 @@ export function createCategoriesResource(client: Client) {
 			categoryId: number,
 			body: UpdateCompanyCategoryBody,
 		): Promise<PutApiErpV1CompanyCategoriesCategoryIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await putApiErpV1CompanyCategoriesCategoryId({
 					path: { categoryId },
 					body,
@@ -92,7 +89,7 @@ export function createCategoriesResource(client: Client) {
 		 * Delete the company category identified by `categoryId`.
 		 */
 		async remove(categoryId: number): Promise<void> {
-			ensureErpSuccess(
+			ensureSuccess(
 				await deleteApiErpV1CompanyCategoriesCategoryId({ path: { categoryId }, client }),
 				'erp.categories.remove',
 			)
@@ -111,13 +108,13 @@ export function createCompanyTypesResource(client: Client) {
 		 * List all company types configured in TANSS.
 		 */
 		async list(): Promise<GetApiErpV1TypesResponse> {
-			return ensureErpData(await getApiErpV1Types({ client }), 'erp.types.list')
+			return ensureData(await getApiErpV1Types({ client }), 'erp.types.list')
 		},
 		/**
 		 * Read the single company type identified by `typeId`.
 		 */
 		async get(typeId: number): Promise<GetApiErpV1TypesTypeIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1TypesTypeId({ path: { typeId }, client }),
 				'erp.types.get',
 			)
@@ -126,7 +123,7 @@ export function createCompanyTypesResource(client: Client) {
 		 * Create a new company type and assign it to a category.
 		 */
 		async create(body: CreateCompanyTypeBody): Promise<PostApiErpV1TypesResponse> {
-			return ensureErpData(await postApiErpV1Types({ body, client }), 'erp.types.create')
+			return ensureData(await postApiErpV1Types({ body, client }), 'erp.types.create')
 		},
 		/**
 		 * Update the company type identified by `typeId`.
@@ -135,7 +132,7 @@ export function createCompanyTypesResource(client: Client) {
 			typeId: number,
 			body: UpdateCompanyTypeBody,
 		): Promise<PutApiErpV1TypesTypeIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await putApiErpV1TypesTypeId({ path: { typeId }, body, client }),
 				'erp.types.update',
 			)
@@ -144,7 +141,7 @@ export function createCompanyTypesResource(client: Client) {
 		 * Delete the company type identified by `typeId`.
 		 */
 		async remove(typeId: number): Promise<void> {
-			ensureErpSuccess(
+			ensureSuccess(
 				await deleteApiErpV1TypesTypeId({ path: { typeId }, client }),
 				'erp.types.remove',
 			)

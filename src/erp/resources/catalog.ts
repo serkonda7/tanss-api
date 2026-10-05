@@ -4,7 +4,7 @@ import type {
 	GetApiV1ErpProjectsResponse,
 	GetApiV1ErpStocksResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 /**
  * ERP backend catalog (`/api/v1/erp/...`): projects and stocks resolved
@@ -17,13 +17,13 @@ export function createCatalogResource(client: Client) {
 		 * List projects from the configured ERP backend.
 		 */
 		async projects(): Promise<GetApiV1ErpProjectsResponse> {
-			return ensureErpData(await getApiV1ErpProjects({ client }), 'erp.catalog.projects')
+			return ensureData(await getApiV1ErpProjects({ client }), 'erp.catalog.projects')
 		},
 		/**
 		 * List stocks (warehouses/inventories) from the configured ERP backend.
 		 */
 		async stocks(): Promise<GetApiV1ErpStocksResponse> {
-			return ensureErpData(await getApiV1ErpStocks({ client }), 'erp.catalog.stocks')
+			return ensureData(await getApiV1ErpStocks({ client }), 'erp.catalog.stocks')
 		},
 	}
 }

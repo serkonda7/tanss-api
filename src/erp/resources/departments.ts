@@ -7,7 +7,7 @@ import type {
 	GetApiErpV1CompaniesDepartmentsResponse,
 	GetApiErpV1DepartmentsDepartmentIdEmployeesResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 /**
  * Departments (Abteilungen): company-wide list plus the employees assigned
@@ -19,7 +19,7 @@ export function createDepartmentsResource(client: Client) {
 		 * List the company departments configured in TANSS.
 		 */
 		async list(): Promise<GetApiErpV1CompaniesDepartmentsResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1CompaniesDepartments({ client }),
 				'erp.departments.list',
 			)
@@ -30,7 +30,7 @@ export function createDepartmentsResource(client: Client) {
 		async employees(
 			departmentId: number,
 		): Promise<GetApiErpV1DepartmentsDepartmentIdEmployeesResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1DepartmentsDepartmentIdEmployees({
 					path: { departmentId },
 					client,

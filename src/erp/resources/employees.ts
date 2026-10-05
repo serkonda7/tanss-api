@@ -13,7 +13,7 @@ import type {
 	PutApiErpV1EmployeesIdData,
 	PutApiErpV1EmployeesIdResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 export type CreateEmployeeBody = PostApiErpV1EmployeesData['body']
 export type UpdateEmployeeBody = PutApiErpV1EmployeesIdData['body']
@@ -27,16 +27,13 @@ export function createEmployeesResource(client: Client) {
 		 * Create a new employee record from the ERP payload.
 		 */
 		async create(body: CreateEmployeeBody): Promise<PostApiErpV1EmployeesResponse> {
-			return ensureErpData(
-				await postApiErpV1Employees({ body, client }),
-				'erp.employees.create',
-			)
+			return ensureData(await postApiErpV1Employees({ body, client }), 'erp.employees.create')
 		},
 		/**
 		 * Read the single employee record identified by `id`.
 		 */
 		async get(id: number): Promise<GetApiErpV1EmployeesIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1EmployeesId({ path: { id }, client }),
 				'erp.employees.get',
 			)
@@ -48,7 +45,7 @@ export function createEmployeesResource(client: Client) {
 			id: number,
 			body: UpdateEmployeeBody,
 		): Promise<PutApiErpV1EmployeesIdResponse> {
-			return ensureErpData(
+			return ensureData(
 				await putApiErpV1EmployeesId({ path: { id }, body, client }),
 				'erp.employees.update',
 			)
@@ -59,7 +56,7 @@ export function createEmployeesResource(client: Client) {
 		async departments(
 			employeeId: number,
 		): Promise<GetApiErpV1EmployeesEmployeeIdDepartmentsResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1EmployeesEmployeeIdDepartments({ path: { employeeId }, client }),
 				'erp.employees.departments',
 			)

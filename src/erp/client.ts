@@ -1,5 +1,5 @@
-import { createClient } from '../generated/client/client.gen'
 import type { Client, Config } from '../generated/client/types.gen'
+import { createClientInstance, setClientToken } from '../shared/client'
 
 export interface CreateErpClientOptions {
 	/**
@@ -27,24 +27,14 @@ export interface CreateErpClientOptions {
 
 /**
  * Create an isolated hey-api client pre-configured for the ERP endpoints.
- *
- * Unlike the generated `client` singleton, the returned instance is not
- * shared with other API areas, so `setConfig` calls elsewhere cannot leak a
- * user token into ERP requests (or vice versa).
  */
 export function createErpClientInstance(options: CreateErpClientOptions): Client {
-	const { baseUrl, token, fetch, config } = options
-	return createClient({
-		...config,
-		baseUrl,
-		auth: token,
-		...(fetch !== undefined ? { fetch } : {}),
-	})
+	return createClientInstance(options)
 }
 
 /**
  * Update the token of an ERP client instance (e.g. after rotation).
  */
 export function setErpClientToken(client: Client, token: string): void {
-	client.setConfig({ auth: token })
+	setClientToken(client, token)
 }

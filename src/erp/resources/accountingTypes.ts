@@ -13,7 +13,7 @@ import type {
 	PostApiErpV1AccountingtypesPricesResponse,
 	PostApiErpV1AccountingtypesResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 export type CreateAccountingTypeBody = PostApiErpV1AccountingtypesData['body']
 export type CreateAccountingTypePriceBody = PostApiErpV1AccountingtypesPricesData['body']
@@ -27,7 +27,7 @@ export function createAccountingTypesResource(client: Client) {
 		 * List the accounting types configured in TANSS.
 		 */
 		async list(): Promise<GetApiErpV1AccountingtypesResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1Accountingtypes({ client }),
 				'erp.accountingTypes.list',
 			)
@@ -36,7 +36,7 @@ export function createAccountingTypesResource(client: Client) {
 		 * Create a new accounting type (Leistungsart).
 		 */
 		async create(body: CreateAccountingTypeBody): Promise<PostApiErpV1AccountingtypesResponse> {
-			return ensureErpData(
+			return ensureData(
 				await postApiErpV1Accountingtypes({ body, client }),
 				'erp.accountingTypes.create',
 			)
@@ -46,7 +46,7 @@ export function createAccountingTypesResource(client: Client) {
 			 * List the default (system-wide) accounting type prices.
 			 */
 			async list(): Promise<GetApiErpV1AccountingtypesPricesResponse> {
-				return ensureErpData(
+				return ensureData(
 					await getApiErpV1AccountingtypesPrices({ client }),
 					'erp.accountingTypes.prices.list',
 				)
@@ -58,7 +58,7 @@ export function createAccountingTypesResource(client: Client) {
 			async create(
 				body: CreateAccountingTypePriceBody,
 			): Promise<PostApiErpV1AccountingtypesPricesResponse> {
-				return ensureErpData(
+				return ensureData(
 					await postApiErpV1AccountingtypesPrices({ body, client }),
 					'erp.accountingTypes.prices.create',
 				)

@@ -10,6 +10,9 @@ _2026-10-05_
   - `postApiV1EmployeesDepartments`
   - `deleteApiV1SupportsSupportId`
   - `getApiV1Cars`
+- new `createTanssClient` / `TanssClient` for `/api/v1/...` routes that use a user session token,
+  with `devices` (`pcs`, `peripheries`, `components`) and `offers`
+- `ErpApiError` renamed to `TanssApiError` (thrown by both clients); `ErpApiError` remains as a deprecated alias
 
 ### Migration notes
 The following generated SDK functions were removed or replaced:
@@ -30,7 +33,8 @@ The following generated SDK functions were removed or replaced:
 | `getApiV1TimelineOutlookSync` | — |
 | `getApiV1VouchersId`, `postApiV1VouchersId` | — |
 
-The `erp` abstraction layer is unaffected.
+`erp.offers` moved to the new user-token client: use `createTanssClient({ baseUrl, token })`
+with a user session token and call `tanss.offers.*` instead.
 
 
 ## 0.3.0

@@ -8,7 +8,7 @@ import type {
 	GetApiErpV1ChecklistsResponse,
 	PostApiErpV1ChecklistsAssignmentLinkTypeIdLinkIdChecklistIdResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 export type ChecklistsQuery = GetApiErpV1ChecklistsData['query']
 
@@ -27,10 +27,7 @@ export function createChecklistsResource(client: Client) {
 		 * List checklists, optionally filtered by company and/or department.
 		 */
 		async list(query?: ChecklistsQuery): Promise<GetApiErpV1ChecklistsResponse> {
-			return ensureErpData(
-				await getApiErpV1Checklists({ query, client }),
-				'erp.checklists.list',
-			)
+			return ensureData(await getApiErpV1Checklists({ query, client }), 'erp.checklists.list')
 		},
 		/**
 		 * Assign a checklist to a ticket (`linkTypeId: 11`).
@@ -39,7 +36,7 @@ export function createChecklistsResource(client: Client) {
 			args: AssignChecklistArgs,
 		): Promise<PostApiErpV1ChecklistsAssignmentLinkTypeIdLinkIdChecklistIdResponse> {
 			const { linkTypeId, linkId, checklistId } = args
-			return ensureErpData(
+			return ensureData(
 				await postApiErpV1ChecklistsAssignmentLinkTypeIdLinkIdChecklistId({
 					path: { linkTypeId, linkId, checklistId },
 					client,

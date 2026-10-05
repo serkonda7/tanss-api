@@ -13,7 +13,7 @@ import type {
 	PostApiErpV1TicketsTicketIdUploadData,
 	PostApiErpV1TicketsTicketIdUploadResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 export type CreateErpTicketBody = PostApiErpV1TicketsData['body']
 export type UploadTicketFileBody = NonNullable<PostApiErpV1TicketsTicketIdUploadData['body']>
@@ -28,19 +28,19 @@ export function createTicketsResource(client: Client) {
 		 * Create a new ticket in the database.
 		 */
 		async create(body: CreateErpTicketBody): Promise<PostApiErpV1TicketsResponse> {
-			return ensureErpData(await postApiErpV1Tickets({ body, client }), 'erp.tickets.create')
+			return ensureData(await postApiErpV1Tickets({ body, client }), 'erp.tickets.create')
 		},
 		/**
 		 * List all ticket states configured in TANSS (for status mapping).
 		 */
 		async statuses(): Promise<GetApiErpV1TicketsStatusResponse> {
-			return ensureErpData(await getApiErpV1TicketsStatus({ client }), 'erp.tickets.statuses')
+			return ensureData(await getApiErpV1TicketsStatus({ client }), 'erp.tickets.statuses')
 		},
 		/**
 		 * List all active ticket types configured in TANSS.
 		 */
 		async types(): Promise<GetApiErpV1TicketsTypesResponse> {
-			return ensureErpData(await getApiErpV1TicketsTypes({ client }), 'erp.tickets.types')
+			return ensureData(await getApiErpV1TicketsTypes({ client }), 'erp.tickets.types')
 		},
 		/**
 		 * Upload a document or image into the given ticket.
@@ -49,7 +49,7 @@ export function createTicketsResource(client: Client) {
 			ticketId: number,
 			files: UploadTicketFileBody,
 		): Promise<PostApiErpV1TicketsTicketIdUploadResponse> {
-			return ensureErpData(
+			return ensureData(
 				await postApiErpV1TicketsTicketIdUpload({
 					path: { ticketId },
 					body: files,

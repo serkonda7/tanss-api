@@ -11,7 +11,7 @@ import type {
 	PostApiErpV1CustomersData,
 	PostApiErpV1CustomersResponse,
 } from '../../generated/types.gen'
-import { ensureErpData } from '../errors'
+import { ensureData } from '../../shared/errors'
 
 export type UpsertCustomersBody = PostApiErpV1CustomersData['body']
 export type InvoicesQuery = GetApiErpV1InvoicesData['query']
@@ -25,7 +25,7 @@ export function createCustomersResource(client: Client) {
 		 * Read the full customer list through the legacy ERP backend bridge (`modified=-1`).
 		 */
 		async listAll(): Promise<GetApiErpV1CustomersResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1Customers({ client, query: { modified: -1 } as unknown as never }),
 				'erp.customers.listAll',
 			)
@@ -37,7 +37,7 @@ export function createCustomersResource(client: Client) {
 		 * (`GET /api/erp/v1/customers?modified=<unixTimestamp>`).
 		 */
 		async listModified(modified: number): Promise<GetApiErpV1CustomersResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1Customers({
 					client,
 					query: { modified } as unknown as never,
@@ -51,16 +51,13 @@ export function createCustomersResource(client: Client) {
 		 * The endpoint takes a raw string body (no JSON wrapping).
 		 */
 		async upsert(body: UpsertCustomersBody): Promise<PostApiErpV1CustomersResponse> {
-			return ensureErpData(
-				await postApiErpV1Customers({ body, client }),
-				'erp.customers.upsert',
-			)
+			return ensureData(await postApiErpV1Customers({ body, client }), 'erp.customers.upsert')
 		},
 		/**
 		 * Read invoices for the given customer from the legacy ERP backend.
 		 */
 		async invoices(query?: InvoicesQuery): Promise<GetApiErpV1InvoicesResponse> {
-			return ensureErpData(
+			return ensureData(
 				await getApiErpV1Invoices({ query, client }),
 				'erp.customers.invoices',
 			)
