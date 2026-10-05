@@ -1,7 +1,7 @@
 {
   "name": "tanss-api",
   "description": "TypeScript client for the TANSS API",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "UNLICENSED",
   "author": "Lukas Neubert (serkonda7)",
   "homepage": "https://github.com/serkonda7/tanss-api",
@@ -31,7 +31,7 @@
     "dist"
   ],
   "scripts": {
-    "generate": "openapi-ts -i ./openapi/10.15.0.yaml -o ./src/generated",
+    "generate": "openapi-ts -i ./openapi/10.18.0.yaml -o ./src/generated",
     "lint": "biome check --write",
     "lint:ci": "biome ci",
     "check": "tsc --noEmit",

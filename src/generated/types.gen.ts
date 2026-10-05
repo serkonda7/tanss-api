@@ -235,7 +235,17 @@ export type TicketStandard = {
    */
   deliveryAddressOnPdf?: boolean;
   /**
-   * if the ticket has a service cap, here the amount is given
+   * If the ticket has a service cap ("Obergrenze"), here the amount is given.
+   *
+   * Note: the value is only applied if the request is authenticated as an
+   * employee who may authorize a service cap for the ticket's company. Requests
+   * authenticated with an integration token (`ErpToken`, `MonitoringToken`, ...)
+   * have no employee behind them, so a `serviceCapAmount` sent on those routes is
+   * ignored and the ticket is created with `0`. Use `POST /api/v1/tickets` /
+   * `PUT /api/v1/tickets/{ticketId}` with a user token to set it, or
+   * `GET /api/v1/tickets/{ticketId}/serviceCap/request/{employeeId}/{newAmount}`
+   * to mail an approval request to an employee who may authorize it.
+   *
    */
   serviceCapAmount?: number;
   /**
@@ -366,14 +376,6 @@ export type TicketList = TicketStandard & {
   readonly chats?: Array<TnsChatVue>;
   nextSupport?: TnsSupportFuture;
   /**
-   * If the remitter is assigned to a department, returns the name of the department
-   */
-  readonly remitterDepartmentName?: string;
-  /**
-   * If the remitter is assigned to a department, returns the id of the department
-   */
-  readonly remitterDepartmentId?: number;
-  /**
    * returns the internal content if the user has right to
    */
   internalContent?: string;
@@ -496,19 +498,49 @@ export type TicketConfiguration = {
 export type TicketComplete = TicketStandard;
 
 /**
- * represents a tag assignment to a persisted object
+ * Reference to an existing tag, used whenever tags are assigned while another object
+ * (ticket, support, ...) is persisted.
+ *
+ * Only `id` is evaluated - all other tag fields are ignored.
+ *
+ * To assign or remove a tag on an already persisted object without saving the object
+ * itself, use `/api/v1/tags/assignment` (`TnsTagAssignment`) instead.
+ *
  */
-export type TnsTagAssignmentTagOnly = {
+export type TnsTagAssign = {
   /**
-   * id of the tag
+   * id of the tag which shall be assigned
    */
   id?: number;
 };
 
 /**
+ * the tag assignments which can be sent when a ticket is persisted
+ */
+export type TicketTagAssignments = {
+  /**
+   * Tags which shall be assigned to the ticket. Every entry references an existing tag
+   * by its `id`:
+   *
+   * ```json
+   * "tags": [{"id": 123}]
+   * ```
+   *
+   * Only `id` is evaluated - all other tag fields are ignored.
+   *
+   * When a ticket is created, every listed tag is assigned. When a ticket is updated,
+   * the list is the **complete** set of tags for this ticket: tags which are missing
+   * from the list are removed again (except tags which the current user may not
+   * remove). Omit the field completely to leave the existing assignments untouched.
+   *
+   */
+  tags?: Array<TnsTagAssign>;
+};
+
+/**
  * ticket model to be saved
  */
-export type TicketSave = TicketComplete & {
+export type TicketSave = TicketComplete & TicketTagAssignments & {
   /**
    * when persisting a project, you can also send a list of sub-tickets here (optional).
    *
@@ -516,18 +548,13 @@ export type TicketSave = TicketComplete & {
    *
    */
   subTickets?: Array<TicketComplete>;
-  /**
-   * when persisting a ticket, you can also send a list of tag assignments which will be assigned to the ticket
-   *
-   */
-  tags?: Array<TnsTagAssignmentTagOnly>;
 };
 
 export type TnsPosting = {
   /**
    * id of the posting
    */
-  id?: number;
+  readonly id?: number;
   /**
    * date when the posting was created (is filled automatically with the current date by the API when creating items)
    */
@@ -564,7 +591,7 @@ export type TnsSupportSmall = {
   /**
    * id of this support
    */
-  id?: number;
+  readonly id?: number;
   /**
    * id of the connected ticket
    */
@@ -865,7 +892,7 @@ export type TnsMail = {
   /**
    * e-Mail of the sender
    */
-  senderEmail?: string;
+  senderEMail?: string;
   /**
    * subject of the mail
    */
@@ -909,6 +936,53 @@ export type TicketHistory = {
    * contains all mails of this ticket
    */
   mails?: Array<TnsMail>;
+  /**
+   * Git commits linked to this ticket. Only present for technicians/freelancers and only
+   * when the `gitCommits` feature is active in the ticket module - otherwise the field is
+   * omitted. Same records as `GET /api/v1/git/commits/ticket/{ticketId}`.
+   *
+   */
+  readonly gitCommits?: Array<{
+    readonly id?: number;
+    /**
+     * commit hash
+     */
+    hash?: string;
+    /**
+     * name of the git project the commit belongs to
+     */
+    project?: string;
+    /**
+     * branch the commit was pushed to
+     */
+    branch?: string;
+    /**
+     * commit message
+     */
+    message?: string;
+    /**
+     * author as reported by git
+     */
+    author?: string;
+    /**
+     * id of the TANSS employee the author could be matched to (0 if none).
+     * Name is stored in the "linked entities" - "employees"
+     *
+     */
+    employeeId?: number;
+    /**
+     * commit date as unix timestamp
+     */
+    date?: number;
+    /**
+     * id of the ticket the commit is linked to
+     */
+    ticketId?: number;
+    /**
+     * whether the commit was pinned to the ticket
+     */
+    pinned?: boolean;
+  }>;
 };
 
 /**
@@ -1086,7 +1160,7 @@ export type TnsPhoneCallConfiguration = {
 /**
  * Determines how a phone number could be matched
  */
-export type TnsPhoneNumberFoundType = 'NONE' | 'TOO_SHORT' | 'COMPANY' | 'EMPLOYEE' | 'EMPLOYEE_INACIVE';
+export type TnsPhoneNumberFoundType = 'NONE' | 'TOO_SHORT' | 'COMPANY' | 'EMPLOYEE' | 'EMPLOYEE_INACTIVE';
 
 /**
  * Determines a source of a phone number which could be retrieved from a company or an employee
@@ -1165,7 +1239,7 @@ export type TnsPhoneCall = {
   /**
    * id of the phone call (in the TANSS database)
    */
-  id?: number;
+  readonly id?: number;
   /**
    * (Optional) Describes the external id of the phone call, which is used by the remote phone system
    */
@@ -1263,7 +1337,7 @@ export type TnsRemoteMaintenanceConfiguration = {
  * This object represents a remote support
  */
 export type TnsRemoteMaintenance = {
-  id?: number;
+  readonly id?: number;
   /**
    * "Identifier" used by the remote systems to identify this remote support
    *
@@ -1423,6 +1497,205 @@ export type TnsMonitoringGroupNameMatchingId = {
   groupName?: string;
 };
 
+export type Invoice = {
+  /**
+   * `OK`, or the reason why the order request file could not be delivered.
+   */
+  status?: string;
+  /**
+   * Id of the voucher the order request belongs to.
+   */
+  voucher_id?: number;
+  /**
+   * Order request XML of the voucher, Base64-encoded. Empty when the file could not be read.
+   */
+  order_request?: string | null;
+  /**
+   * Rendered voucher PDF, Base64-encoded. Only present when the request was sent with `pdf=true`.
+   */
+  pdf?: string;
+};
+
+export type InvoicePost = {
+  /**
+   * Id of the voucher
+   */
+  voucher_id: number;
+  /**
+   * Number of the invoice
+   */
+  invoice_number: string;
+  /**
+   * Document number on the ERP side. Only evaluated when Systemhaus.One is the connected ERP, ignored otherwise.
+   */
+  docentry?: number;
+};
+
+export type InvoicePostResponse = {
+  /**
+   * `OK`, or the reason why the entry was skipped (e.g. unknown `voucher_id`).
+   */
+  status?: string;
+  /**
+   * Voucher PDF filed in the voucher history, Base64-encoded. Empty for maintenance-contract payments and for skipped entries.
+   */
+  pdf?: string | null;
+  voucher_id?: number;
+  invoice_number?: string;
+  /**
+   * Echoed back when it was part of the request.
+   */
+  docentry?: number;
+};
+
+export type CategorySection = {
+  id?: number;
+  name?: string;
+};
+
+export type Category = {
+  id?: number;
+  name?: string;
+  section?: CategorySection;
+};
+
+export type Customer = {
+  /**
+   * Id of the company in tanss
+   */
+  id?: number;
+  /**
+   * Represent the Id in the ERP-System
+   */
+  customer_number?: string;
+  /**
+   * Matchcode is a additional field with a unique key
+   */
+  matchcode?: string;
+  /**
+   * Name of the company
+   */
+  name?: string;
+  /**
+   * Street where the company is located
+   */
+  street?: string;
+  /**
+   * Postalcode of the location
+   */
+  postal_code?: string;
+  /**
+   * City where the company is located
+   */
+  city?: string;
+  /**
+   * Country where the company is located
+   */
+  country?: string;
+  /**
+   * First telephone number of the company
+   */
+  phone_number?: string;
+  /**
+   * Fax number of the company
+   */
+  fax_number?: string;
+  /**
+   * General email address of the company
+   */
+  email?: string;
+  /**
+   * Web address of the company
+   */
+  website?: string;
+  /**
+   * Headquarters of the company
+   */
+  headquarters?: string;
+  /**
+   * Indicates if the company is an active or inactive customer
+   */
+  active?: boolean;
+  /**
+   * Indicates if the company is a private customer
+   */
+  private?: boolean;
+  /**
+   * Unix timestamp of the last change to the company. Matched against the `modified` request parameter.
+   */
+  modified?: number;
+  categories?: Array<Category>;
+};
+
+export type AssignedCustomers = {
+  id?: number;
+  customer_number?: string;
+};
+
+export type CustomerEmployee = {
+  id?: number;
+  name?: string;
+  salutation?: string;
+  title?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone_number_1?: string;
+  phone_number_2?: string;
+  mobile_number_1?: string;
+  mobile_number_2?: string;
+  fax_number?: string;
+  room?: string;
+  initials?: string;
+  function?: string;
+  active?: boolean;
+  /**
+   * Unix timestamp of the last change to the employee. Matched against the `modified` request parameter.
+   */
+  modified?: number;
+  external_id?: string;
+  assigned_to_customers?: Array<AssignedCustomers>;
+  /**
+   * Preferred company of the employee. Only present when the request was sent without
+   * `preferredCustomers=false`. `id` is `0` and `customer_number` empty when no preferred
+   * company is set; `external_id` is only filled when one is.
+   *
+   */
+  preferred_customer?: {
+    id?: number;
+    customer_number?: string;
+    external_id?: string;
+  };
+};
+
+export type CustomersCombine = {
+  customers?: Array<Customer>;
+  employees?: Array<CustomerEmployee>;
+};
+
+export type CustomerPost = {
+  /**
+   * One customer or supplier record as the ERP's own XML export, Base64-encoded. The XML root
+   * carries `type="kunden"` (customer) or `type="lief"` (supplier); anything else is rejected
+   * for that entry.
+   *
+   */
+  customer: string;
+};
+
+export type CustomerPostResponse = {
+  /**
+   * `OK`, or the reason why the entry was skipped — `Invalid Base64 encoding`,
+   * `Invalid XML Schema` or `Type of customer could not be determined`.
+   *
+   */
+  status?: string;
+  /**
+   * The entry from the request, echoed back.
+   */
+  customer?: string;
+};
+
 /**
  * informtation about the "type" of the employee (this info is not always given)
  */
@@ -1441,7 +1714,7 @@ export type TnsCompanyType = {
   /**
    * id of the company type
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the company type
    */
@@ -1468,11 +1741,11 @@ export type CompanyDetail = {
   /**
    * id of the company
    */
-  id?: number;
+  readonly id?: number;
   /**
    * This is the "displayed id" (=Kundennummer) of the company. The id must be unique, a customer nr. could be used multiple times
    */
-  displayId?: number;
+  displayId?: string;
   /**
    * name of the company
    */
@@ -1645,6 +1918,13 @@ export type TimestampType = 'WORK' | 'INHOUSE' | 'ERRAND' | 'VACATION' | 'ILLNES
  * ....
  */
 export type Timestamp = {
+  /**
+   * Id of the timestamp. On `PUT /api/v1/timestamps/{employeeId}/day/{day}` this field
+   * selects which entry of the day is meant: an existing id updates that entry, `0`
+   * creates a new one, and entries of the day that are missing from the list are
+   * deleted. Elsewhere the value is generated server-side.
+   *
+   */
   id?: number;
   /**
    * id of the employee
@@ -1962,11 +2242,11 @@ export type TimestampDayClosingOnlyBalance = {
  *
  */
 export type TimestampPauseConfig = {
-  id?: number;
+  readonly id?: number;
   /**
    * Describes the amount of minutes needed to require a minimum pause (defined in "minimumPause")
    */
-  fromMinues?: number;
+  fromMinutes?: number;
   /**
    * A working period must contain at least a pause of x minutes
    */
@@ -2025,7 +2305,7 @@ export type TnsChatConfiguration = {
    * Otherwise returns all chats whith access.
    *
    */
-  showOnlyParticapatedChat?: boolean;
+  showOnlyParticipatedChat?: boolean;
   loadMessages?: TnsChatLoadMessageType;
   /**
    * if true, the "linked entities" will be filled as well (with information regarding employees, tickets etc.)
@@ -2049,7 +2329,7 @@ export type TnsChatConfiguration = {
  * TANSS chat
  */
 export type TnsChat = {
-  id?: number;
+  readonly id?: number;
   /**
    * if a general chat (without assignment) is created, a description is needed
    */
@@ -2289,7 +2569,7 @@ export type TnsOfferErpSelection = {
   /**
    * id of the erp selection
    */
-  id?: number;
+  readonly id?: number;
   /**
    * variable name of the erp selection.
    *
@@ -2311,7 +2591,7 @@ export type TnsOfferTemplate = {
   /**
    * id of the offer template
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the offer template
    */
@@ -2384,9 +2664,9 @@ export type TnsOfferConfiguration = {
    */
   companyId?: number;
   /**
-   * if true, only offers with a valid "validTill" shall be given
+   * filters by the "validTill" date — VALID returns only offers still valid, EXPIRED only expired ones, NONE does not filter
    */
-  onlyValid?: boolean;
+  validity?: 'NONE' | 'VALID' | 'EXPIRED';
   /**
    * only returns offers from this template
    */
@@ -2400,7 +2680,7 @@ export type TnsOffer = {
   /**
    * id of the offer
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the offer
    */
@@ -2468,7 +2748,7 @@ export type TnsWorkflowContractToken = {
   /**
    * date, when the token will expire
    */
-  expires?: number;
+  expire?: number;
   type?: TnsWorkflowContractTokenType;
 };
 
@@ -2683,7 +2963,7 @@ export type TnsTagAssignment = {
  * represents a tag
  */
 export type TnsTagWithoutGroupTag = {
-  id?: number;
+  readonly id?: number;
   /**
    * name of the tag
    */
@@ -2785,15 +3065,15 @@ export type TnsCallbackConfiguration = {
   /**
    * filters only callbacks for these departments
    */
-  toDepartmentIds?: number;
+  toDepartmentIds?: Array<number>;
   /**
    * filters only callbacks for these (customer) companies (ids given here)
    */
-  companyIds?: number;
+  companyIds?: Array<number>;
   /**
    * filters only callbacks for these (customer) employees (ids given here)
    */
-  employeeIds?: number;
+  employeeIds?: Array<number>;
   /**
    * if true, "linked entities" will be loaded as well (given in the responses "meta" section)
    */
@@ -2817,9 +3097,9 @@ export type TnsCallbackConfiguration = {
  */
 export type TnsCallback = {
   /**
-   * Defines the employee who entered the callback
+   * Defines the employee who entered the callback. Set server-side from the authenticated user - a value sent here is ignored.
    */
-  fromEmployeeId?: number;
+  readonly fromEmployeeId?: number;
   /**
    * The callback is assigned to this employee (This person has to do the call)
    */
@@ -2829,9 +3109,9 @@ export type TnsCallback = {
    */
   toDepartmentId?: number;
   /**
-   * The callback was created on this date
+   * The callback was created on this date. Set server-side - a value sent here is ignored.
    */
-  date?: number;
+  readonly date?: number;
   /**
    * Here, the id of the company is given which has to be called back
    */
@@ -3167,9 +3447,9 @@ export type TnsTicketSearchResult = {
    */
   assignedToEmployeeId?: number;
   /**
-   * assigned to department id, name is given in the "linked entities"
+   * assigned to department id, name is given in the "linked entities". Note the spelling — that is how the API returns the field.
    */
-  assignedToDepartmentId?: number;
+  assignedToDpeartmentId?: number;
   /**
    * the external ticket id (if given)
    */
@@ -3366,10 +3646,6 @@ export type TnsSupportConfiguration = {
    * filter for a certain invoice (erp) number
    */
   invoiceNumber?: string;
-  /**
-   * true if external employees shall be excluded
-   */
-  excludeExternalEmployees?: boolean;
   discountedSupports?: TnsDiscountedSupportTypeFilter;
   /**
    * show supports from these "Not charged reasons" only
@@ -3653,15 +3929,27 @@ export type TnsSupportList = {
   outlookLocation?: string;
   metaInfos?: TnsSupportMetaInfos;
   /**
-   * tags assigned to the support (only present for technicians/freelancers)
+   * Tags assigned to the support (only present for technicians/freelancers).
+   *
+   * The field can also be **sent** when a support is created or updated. Every entry
+   * references an existing tag by its `id`:
+   *
+   * ```json
+   * "tags": [{"id": 123}]
+   * ```
+   *
+   * Only `id` is evaluated - all other tag fields are ignored (see `TnsTag-Assign`).
+   * On create every listed tag is assigned. On update the list is the **complete** set
+   * of tags for this support: tags which are missing from the list are removed again
+   * (except tags which the current user may not remove). Omit the field completely to
+   * leave the existing assignments untouched.
+   *
    */
   tags?: Array<TnsTag>;
   /**
    * material booked on the support (present when material is fetched)
    */
-  material?: Array<{
-    [key: string]: unknown;
-  }>;
+  material?: Array<unknown>;
 };
 
 /**
@@ -3708,7 +3996,7 @@ export type TnsSupportType = {
   /**
    * id of the support type
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the support type
    */
@@ -3831,13 +4119,69 @@ export type TnsTicketBoardPanelTicketStatus = {
 };
 
 /**
+ * Per-employee filter of a ticket board panel. The include/only flags live here, not on the
+ * panel itself.
+ *
+ */
+export type TnsTicketBoardPanelFilter = {
+  /**
+   * Panel the filter belongs to
+   */
+  panelId?: number;
+  /**
+   * Employee the filter belongs to
+   */
+  employeeId?: number;
+  /**
+   * Include project tickets
+   */
+  includeProjects?: boolean;
+  /**
+   * Include sub tickets
+   */
+  includeSubTickets?: boolean;
+  /**
+   * Include tickets with waiting status
+   */
+  includeWaitingStates?: boolean;
+  /**
+   * Include tickets that are already done
+   */
+  includeDoneTickets?: boolean;
+  /**
+   * Only tickets of the calling employee
+   */
+  onlyOwnTickets?: boolean;
+  /**
+   * Only tickets of this employee (0 = no restriction)
+   */
+  onlyTicketsFromEmployee?: number;
+  /**
+   * Only overdue tickets
+   */
+  onlyOverdueTickets?: boolean;
+  /**
+   * Only tickets where the caller holds a role
+   */
+  onlyTicketsWithOwnRoles?: boolean;
+  /**
+   * Panel is hidden for this employee
+   */
+  hidden?: boolean;
+  /**
+   * Sort rank of the panel for this employee
+   */
+  rank?: number;
+};
+
+/**
  * Ticket board panel
  */
 export type TnsTicketBoardPanel = {
   /**
    * Panel id
    */
-  id?: number;
+  readonly id?: number;
   /**
    * Panel name
    */
@@ -3852,18 +4196,6 @@ export type TnsTicketBoardPanel = {
   employeeId?: number;
   panelType?: TnsTicketBoardPanelType;
   registerType?: TnsTicketBoardRegisterType;
-  /**
-   * Include project tickets
-   */
-  includeProjects?: boolean;
-  /**
-   * Include sub tickets
-   */
-  includeSubTickets?: boolean;
-  /**
-   * Include tickets with waiting status
-   */
-  includeWaitingStates?: boolean;
   visibility?: TnsTicketBoardPanelVisibility;
   /**
    * Array of panel companies
@@ -3889,6 +4221,7 @@ export type TnsTicketBoardPanel = {
    * Array of panel ticket status
    */
   ticketStatus?: Array<TnsTicketBoardPanelTicketStatus>;
+  filter?: TnsTicketBoardPanelFilter;
 };
 
 /**
@@ -4008,7 +4341,7 @@ export type TnsPersonalComputer = {
   /**
    * id of the pc / server
    */
-  id?: number;
+  readonly id?: number;
   /**
    * inventory number
    */
@@ -4076,7 +4409,7 @@ export type TnsPersonalComputer = {
   /**
    * revision of the mainboard
    */
-  mainboardManufacturerRevision?: string;
+  mainboardRevision?: string;
   /**
    * serial number of the mainboard
    */
@@ -4324,7 +4657,7 @@ export type TnsComponent = {
   /**
    * id of the pc / server
    */
-  id?: number;
+  readonly id?: number;
   /**
    * inventory number of this component
    */
@@ -4436,7 +4769,7 @@ export type TnsPeriphery = {
   /**
    * id of the periphery
    */
-  id?: number;
+  readonly id?: number;
   /**
    * id of the assigned company
    */
@@ -4550,7 +4883,7 @@ export type TnsSoftwarelicense = {
   /**
    * id of the software license
    */
-  id?: number;
+  readonly id?: number;
   /**
    * company id of the software license
    */
@@ -4627,9 +4960,9 @@ export type TnsPersonalComputerWithDetails = TnsPersonalComputerWithIpGuarantee 
    */
   components?: Array<TnsComponent>;
   /**
-   * infos about devices which are linked to this pc
+   * infos about peripheries which are linked to this pc
    */
-  devices?: Array<TnsPeriphery>;
+  peripheries?: Array<TnsPeriphery>;
   /**
    * infos about software licenses which are used by this pc
    */
@@ -4699,7 +5032,7 @@ export type TnsPeripheryType = {
   /**
    * id of the periphery type
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the periphery type
    */
@@ -4738,7 +5071,7 @@ export type TnsComponentType = {
   /**
    * id of the component type
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the component type
    */
@@ -4757,7 +5090,7 @@ export type TnsComponentType = {
  * object representing an employee
  */
 export type Employee = {
-  id?: number;
+  readonly id?: number;
   /**
    * full name of the employee
    */
@@ -4867,7 +5200,7 @@ export type CompanyPost = CompanyDetail & {
 /**
  * Enum representing the "link type" of an assignment. The id is given in the field "linkId"
  */
-export type TnsLinkType = 'PC' | 'COMPANY' | 'EMPLOYEE' | 'PERIPHERY' | 'COMPONENT' | 'SOFTWARELICENSE' | 'SUPPORT' | 'VOUCHER' | 'DOCUMENT' | 'DOCUMENT_S2T' | 'TICKET' | 'KNOWLEDGE_BASE' | 'PERMISSION' | 'PERMISSION_PACKAGE' | 'GROUP' | 'CALLBACK' | 'CONSULTATION' | 'SLA' | 'CONTRACT' | 'PREPAID_PURCHASE' | 'EVENT' | 'FILE_LINKS' | 'BIRTHDAY' | 'DOMAIN' | 'TEAMVIEWER' | 'REMOTE_SUPPORT' | 'DOCUSNAP' | 'MATERIAL' | 'CHAT' | 'TODO' | 'DOCUSNAP_SNMP' | 'VACATION_REQUEST' | 'TICKET_BOARD_PANEL' | 'DEPARTMENT' | 'COMPANY_TYPE' | 'TICKET_TYPE' | 'MAIL' | 'OFFER' | 'TICKET_STATE' | 'OVERTIME_ADDITIONAL_CHARGE' | 'CHECKLIST';
+export type TnsLinkType = 'PC' | 'COMPANY' | 'EMPLOYEE' | 'PERIPHERY' | 'COMPONENT' | 'SOFTWARELICENSE' | 'SUPPORT' | 'VOUCHER' | 'DOCUMENT' | 'TICKET' | 'KNOWLEDGE_BASE' | 'PERMISSION' | 'PERMISSION_PACKAGE' | 'GROUP' | 'CALLBACK' | 'CONSULTATION' | 'SLA' | 'CONTRACT' | 'PREPAID_PURCHASE' | 'EVENT' | 'FILE_LINKS' | 'BIRTHDAY' | 'DOMAIN' | 'TEAMVIEWER' | 'REMOTE_SUPPORT' | 'DOCUSNAP' | 'MATERIAL' | 'CHAT' | 'TODO' | 'DOCUSNAP_SNMP' | 'VACATION_REQUEST' | 'TICKET_BOARD_PANEL' | 'DEPARTMENT' | 'COMPANY_TYPE' | 'TICKET_TYPE' | 'MAIL' | 'OFFER' | 'TICKET_STATE' | 'OVERTIME_ADDITIONAL_CHARGE' | 'CHECKLIST';
 
 /**
  * defines the filter for the event rule list
@@ -4919,7 +5252,7 @@ export type TnsTanssEventRuleAction = {
 };
 
 export type TnsTanssEventRule = {
-  id?: number;
+  readonly id?: number;
   /**
    * defines a "name" for the rule
    */
@@ -5251,7 +5584,7 @@ export type TnsService = {
   /**
    * id of the service
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the service
    */
@@ -5281,7 +5614,7 @@ export type TnsPersonalComputerOperatingSystem = {
   /**
    * id of the os
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the os
    */
@@ -5307,7 +5640,7 @@ export type TnsManufacturer = {
   /**
    * id of the manufacturer
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the manufacturer
    */
@@ -5321,7 +5654,7 @@ export type TnsPersonalComputerCpu = {
   /**
    * id of the cpu
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name/type of the cpu
    */
@@ -5335,7 +5668,7 @@ export type TnsPersonalComputerHddType = {
   /**
    * id of the hdd type
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name/type of the hdd type
    */
@@ -5349,7 +5682,7 @@ export type TnsCompanyCategory = {
   /**
    * id of the company category
    */
-  id?: number;
+  readonly id?: number;
   /**
    * name of the company category
    */
@@ -5439,7 +5772,7 @@ export type TnsIdentifyResponse = {
  * describes an email account (mailbox)
  */
 export type TnsEmailAccount = {
-  id?: number;
+  readonly id?: number;
   /**
    * mail account is assigned to this company
    */
@@ -5481,9 +5814,9 @@ export type TnsEmailAccount = {
    */
   catchAllAccount?: boolean;
   /**
-   * list of assigned e-mail addresses (semicolon seperated)
+   * list of assigned e-mail addresses
    */
-  addresses?: string;
+  addresses?: Array<string>;
   /**
    * is this account activated?
    */
@@ -5614,7 +5947,7 @@ export type TnsVacationRequest = {
   /**
    * id of the vacation request
    */
-  id?: number;
+  readonly id?: number;
   planningType?: TnsPlanningType;
   status?: TnsVacationRequestStatus;
   /**
@@ -5720,6 +6053,9 @@ export type TnsEmployeeVacationDays = {
    * number of days transferred from the previous year
    */
   transferred?: number;
+  /**
+   * Resolved employee, filled server-side for output. Use `employeeId` on input.
+   */
   employee?: Employee;
 };
 
@@ -5822,15 +6158,15 @@ export type TnsDocument = {
   /**
    * id of the document
    */
-  id?: number;
+  readonly id?: number;
   /**
    * creation date of the document
    */
   date?: number;
   /**
-   * modification date of the document
+   * modification date of the document. Set server-side - a value sent here is ignored.
    */
-  modificationDate?: number;
+  readonly modificationDate?: number;
   /**
    * name of the document
    */
@@ -5841,9 +6177,9 @@ export type TnsDocument = {
    */
   companyId?: number;
   /**
-   * id of the employee who created this document
+   * id of the employee who created this document. Set server-side - a value sent here is ignored.
    */
-  createdEmployeeId?: number;
+  readonly createdEmployeeId?: number;
   /**
    * is this an internal document? (not shown for customers)
    */
@@ -5927,7 +6263,7 @@ export type TnsDomain = {
   /**
    * id of the domain
    */
-  id?: number;
+  readonly id?: number;
   /**
    * id of the company the domain belongs to
    */
@@ -5986,7 +6322,7 @@ export type TnsDomainFull = TnsDomain & {
   /**
    * usage for this domain (text)
    */
-  usage?: string;
+  utilization?: string;
   /**
    * if this domain is forwarded to another domain, give the id here
    */
@@ -6073,7 +6409,7 @@ export type TnsSoftwarelicenseType = {
   /**
    * Unique identifier of the software license type.
    */
-  id?: number;
+  readonly id?: number;
   /**
    * Manufacturer article number.
    */
@@ -6139,6 +6475,102 @@ export type TnsAccountingTypePrice = TnsPriceCommons & {
    * id of the counting type
    */
   accountingTypeId?: number;
+};
+
+/**
+ * An automated action attached to a checklist item, a multi-select option or — inside the IT
+ * portal wizard — to a card, widget or option.
+ *
+ */
+export type ChecklistEvent = {
+  /**
+   * Unique identifier of the checklist event.
+   */
+  readonly id?: number;
+  /**
+   * Identifier of the checklist item this event belongs to.
+   */
+  checklistItemId?: number;
+  /**
+   * Identifier of the multi-select option this event is attached to, if any.
+   */
+  multiSelectOptionId?: number;
+  /**
+   * The kind of automated action this event performs.
+   */
+  type?: 'JUMP_TO_FIELD' | 'SEND_EMAIL' | 'CHANGE_TICKET_EMPLOYEE_DEPARTMENT' | 'CHANGE_TICKET_DUE' | 'ADD_TICKET_COMMENT' | 'ADD_CHECKLIST' | 'CREATE_TICKET' | 'CHANGE_TICKET_STATUS' | 'END_PROCESS' | 'APPROVAL_PROCESS' | 'CHANGE_TICKET_PRICE' | 'LOCK_OR_UNLOCK_TICKET' | 'ADD_ROLE' | 'CHANGE_RESUBMISSION' | 'SET_SEPARATE_BILLING' | 'SET_UPPER_LIMIT' | 'SET_INSTALLATION_FEE' | 'CHANGE_TICKET_TYPE' | 'CREATE_PASSWORD' | 'CHANGE_VISIBILITY' | 'CHANGE_ASSIGNMENT' | 'CHANGE_TICKET_DEADLINE' | 'ADD_TAG' | 'CHANGE_ESTIMATED_TIME' | 'SET_TICKET_TEXTS' | 'ESCALATION_CAN_BE_TRIGGERED_AGAIN' | 'CHANGE_PRIORITY' | 'RESET_RULE' | 'LOCAL_TICKET_ADMIN_FLAG' | 'REMOVE_CHECKLIST' | 'SET_COMPANY_TYPES' | 'SUGGEST_TICKET_FOR_FEEDBACK' | 'REMOVE_ROLE' | 'CONTRACT_WORKFLOW' | 'CHANGE_REPAIR_TICKET' | 'CHANGE_EXT_TICKET_NR' | 'CHANGE_TICKET_ORDER_NR' | 'CHANGE_COST_CENTER' | 'CHANGE_CLEARANCE_MODE' | 'SEND_SERVICE_REPORT' | 'APPOINTMENT_WIZARD' | 'ASSIGN_TO_PROJECT' | 'WEBHOOK' | 'SET_REMITTER' | 'SET_NOTIFICATION' | 'CLEAR_SUPPORTS' | 'SET_TICKET_TEXTS_BY_AI' | 'CREATE_TICKET_SUMMARY' | 'CREATE_SUPPORT' | 'START_TICKET_TIMER' | 'OPEN_SOLUTION_ASSISTANT';
+  /**
+   * Configuration value or payload for the event action.
+   */
+  value?: string;
+  /**
+   * Ordering position of the event within its item.
+   */
+  pos?: number;
+};
+
+export type Department = DepartmentShort & {
+  /**
+   * if true, represents an "internal" department (= used for ticket or technician assignment)
+   */
+  internal?: boolean;
+  /**
+   * if true, department is "locked" for customers by default
+   */
+  customerLock?: boolean;
+};
+
+/**
+ * One invoice or credit note as delivered by the connected SAP Business One system. Field names
+ * are the SAP ones; `TypeCancellation`, `CancellationDate`, `OpenSum` and `Paid` are derived by
+ * TANSS.
+ *
+ */
+export type SapOneInvoice = {
+  /**
+   * `1` when the document is an invoice (OINV).
+   */
+  TypeInvoice?: number;
+  /**
+   * `1` when the document is a credit note (ORIN).
+   */
+  TypeCredit?: number;
+  /**
+   * SAP cancellation flag; `C` marks a cancelled document.
+   */
+  Canceled?: string;
+  CreateDate?: string;
+  DocEntry?: number;
+  DocNum?: number;
+  DocDate?: string;
+  DocDueDate?: string;
+  /**
+   * Customer number (CardCode) in SAP.
+   */
+  CardCode?: string;
+  CardName?: string;
+  Comments?: string;
+  /**
+   * Gross total. Negative for credit notes.
+   */
+  DocTotal?: number;
+  PaidToDate?: number;
+  /**
+   * `1` when `Canceled` is `C`.
+   */
+  TypeCancellation?: number;
+  /**
+   * Creation date of the document when it is cancelled, empty otherwise.
+   */
+  CancellationDate?: string;
+  /**
+   * For invoices `DocTotal - PaidToDate`, for credit notes `0`.
+   */
+  OpenSum?: number;
+  /**
+   * `1` when an invoice is fully paid; credit notes are always `1`.
+   */
+  Paid?: number;
 };
 
 export type TicketStandardWritable = {
@@ -6272,7 +6704,17 @@ export type TicketStandardWritable = {
    */
   deliveryAddressOnPdf?: boolean;
   /**
-   * if the ticket has a service cap, here the amount is given
+   * If the ticket has a service cap ("Obergrenze"), here the amount is given.
+   *
+   * Note: the value is only applied if the request is authenticated as an
+   * employee who may authorize a service cap for the ticket's company. Requests
+   * authenticated with an integration token (`ErpToken`, `MonitoringToken`, ...)
+   * have no employee behind them, so a `serviceCapAmount` sent on those routes is
+   * ignored and the ticket is created with `0`. Use `POST /api/v1/tickets` /
+   * `PUT /api/v1/tickets/{ticketId}` with a user token to set it, or
+   * `GET /api/v1/tickets/{ticketId}/serviceCap/request/{employeeId}/{newAmount}`
+   * to mail an approval request to an employee who may authorize it.
+   *
    */
   serviceCapAmount?: number;
   /**
@@ -6367,7 +6809,7 @@ export type TicketCompleteWritable = TicketStandardWritable;
 /**
  * ticket model to be saved
  */
-export type TicketSaveWritable = TicketCompleteWritable & {
+export type TicketSaveWritable = TicketCompleteWritable & TicketTagAssignments & {
   /**
    * when persisting a project, you can also send a list of sub-tickets here (optional).
    *
@@ -6375,11 +6817,500 @@ export type TicketSaveWritable = TicketCompleteWritable & {
    *
    */
   subTickets?: Array<TicketCompleteWritable>;
+};
+
+export type TnsPostingWritable = {
   /**
-   * when persisting a ticket, you can also send a list of tag assignments which will be assigned to the ticket
+   * date when the posting was created (is filled automatically with the current date by the API when creating items)
+   */
+  date?: number;
+  /**
+   * id of the author of this posting (is filled automatically with the current logged in user by the API when creating items)
+   */
+  employeeId?: number;
+  /**
+   * the title of the posting
+   */
+  title?: string;
+  /**
+   * actual content / text
+   */
+  content?: string;
+  /**
+   * wether the posting is internal or not
+   */
+  internal?: boolean;
+};
+
+/**
+ * Defines a ticket comment
+ */
+export type TnsCommentWritable = TnsPostingWritable & {
+  /**
+   * the id of the ticket is given here
+   */
+  commentOfId?: number;
+};
+
+export type TnsSupportSmallWritable = {
+  /**
+   * id of the connected ticket
+   */
+  ticketId?: number;
+  /**
+   * beginning of the support
+   */
+  date?: number;
+  /**
+   * duration of the service (in minutes)
+   */
+  duration?: number;
+  location?: TnsSupportLocation;
+  /**
+   * link type of the assignment
+   */
+  linkTypeId?: number;
+  /**
+   * id of the assignment
+   */
+  linkId?: number;
+  /**
+   * id of the support type
+   */
+  typeId?: number;
+  /**
+   * description / text for this support entry
+   */
+  text?: string;
+  /**
+   * duration which is not charged (in minutes)
+   */
+  durationNotCharged?: number;
+  /**
+   * id of the employee who has done this support
+   */
+  employeeId?: number;
+  planningType?: TnsPlanningType;
+  /**
+   * id of the cost center
+   */
+  costCenterId?: number;
+  /**
+   * if support was not chatged, the reason / text goes here
+   */
+  reasonNotChargedText?: string;
+  /**
+   * id of the "not charged reason" (if support was completely not charged)
+   */
+  reasonNotChargedId?: number;
+  /**
+   * id of the "not charged reason" (if support was partially not charged)
+   */
+  reasonPartialNotChargedId?: number;
+};
+
+/**
+ * describes a support entry (same for appointment)
+ */
+export type TnsSupportWritable = TnsSupportSmallWritable & {
+  /**
+   * id of the method, the remitter hat given the order (optional)
+   */
+  orderedViaId?: number;
+  /**
+   * percent that shall be applied
+   */
+  percent?: number;
+  /**
+   * if a pc is used as an assignment, a license can be given as well (optional)
+   */
+  softwareLicenseId?: number;
+  /**
+   * id of the accountingtype used for this support (i.e. "Techniker")
+   */
+  accountingTypeId?: number;
+  /**
+   * wether the support was already booked
+   */
+  booked?: boolean;
+  clearanceStatus?: TnsSupportClearanceStatus;
+  /**
+   * id of the company for this support
+   */
+  companyId?: number;
+  /**
+   * id of the contract, used for this support
+   */
+  contractId?: number;
+  /**
+   * if support is assigned to a task, use it here
+   */
+  taskId?: number;
+  /**
+   * id of the employee who has created this support
+   */
+  createdEmployeeId?: number;
+  /**
+   * if used, id of the department which is assigned to this support
+   */
+  departmentId?: number;
+  /**
+   * duration (in minutes) of the approach (drive)
+   */
+  durationApproach?: number;
+  driveType?: TnsSupportDriveType;
+  /**
+   * determines if the drive shall be charged or not
+   */
+  driveCharged?: boolean;
+  /**
+   * false if the duration approach is not charged (should be true by default)
+   */
+  durationApproachCharged?: boolean;
+  /**
+   * km of the approach (drive)
+   */
+  kmApproach?: number;
+  /**
+   * false if the km approach is not charged (should be true by default)
+   */
+  kmApproachCharged?: boolean;
+  /**
+   * duration (in minutes) of the departure (drive)
+   */
+  durationDeparture?: number;
+  /**
+   * false if the duration departure is not charged (should be true by default)
+   */
+  durationDepartureCharged?: boolean;
+  /**
+   * km of the departure (drive)
+   */
+  kmDeparture?: number;
+  /**
+   * false if the km departure is not charged (should be true by default)
+   */
+  kmDepartureCharged?: boolean;
+  /**
+   * id of the zone (if zone is used)
+   */
+  zoneId?: number;
+  /**
+   * id of the car (if car is used)
+   */
+  carId?: number;
+  /**
+   * timestamp when the pause starts (0 if no pause is given)
+   */
+  startBreak?: number;
+  /**
+   * duration of the pause (in minutes)
+   */
+  durationBreak?: number;
+  /**
+   * if the support has an erp number entered
+   */
+  erpNumber?: string;
+  /**
+   * if this support was created by a customer login, this value is "true"
+   */
+  extern?: boolean;
+  /**
+   * if the support has an external ticket number entered, this number is given here
+   */
+  externalTicketId?: string;
+  /**
+   * the hourly rate for this support (or the rate per working unit)
+   */
+  hourlyRate?: number;
+  /**
+   * wether the support will be billed as an "installation fee" with a fixed price
+   */
+  installationFee?: boolean;
+  /**
+   * if the support will be billed as an "installation fee", the amount is given here
+   */
+  installationFeeAmount?: number;
+  /**
+   * if the support will be billed as an "installation fee", the id of the installation fee type is given here
+   */
+  installationFeeTypeId?: number;
+  installationFeeDriveMode?: TnsInstallationFeeDriveMode;
+  /**
+   * if this support is marked as "internal" (customers won't see those)
+   */
+  internal?: boolean;
+  /**
+   * true, if this support is a TANSS2Ex appointment
+   */
+  outlook?: boolean;
+  /**
+   * title for outlook appointments
+   */
+  outlookTitle?: string;
+  /**
+   * location for outlook appointments
+   */
+  outlookLocation?: string;
+  /**
+   * if the synced appointment has a teams url, you can specify it here
+   */
+  teamsUrl?: string;
+  supportIconType?: TnsSupportIconType;
+  /**
+   * internal remarks for this support (customers won't see this)
+   */
+  textIntern?: string;
+  /**
+   * if the support was already booked and assigned to a voucher, the voucher id is given here
+   */
+  voucherId?: number;
+  importType?: TnsPlanningType;
+  /**
+   * true, if this support shall be billed separately
+   */
+  separateBilling?: boolean;
+  /**
+   * if a relationship shall be used, give here the link type of the relationship
+   */
+  relationshipLinkTypeId?: number;
+  /**
+   * if a relationship shall be used, give here the link id of the relationship
+   */
+  relationshipLinkId?: number;
+  /**
+   * if a service location is used, give here the company of the service location
+   */
+  serviceLocationId?: number;
+};
+
+/**
+ * object containing the ticket history
+ */
+export type TicketHistoryWritable = {
+  /**
+   * contains all comments of this ticket
+   */
+  comments?: Array<TnsCommentWritable>;
+  /**
+   * contains all supports of this ticket
+   */
+  supports?: Array<TnsSupportWritable>;
+  /**
+   * contains all mails of this ticket
+   */
+  mails?: Array<TnsMail>;
+};
+
+/**
+ * This object represents a phone call
+ */
+export type TnsPhoneCallWritable = {
+  /**
+   * (Optional) Describes the external id of the phone call, which is used by the remote phone system
+   */
+  callId?: string;
+  /**
+   * (Optional) If more than one remote phone systems is used, represents the "number" of the phone system
+   */
+  telephoneSystemId?: number;
+  /**
+   * Unix timestamp representing the begin of the phone call
+   */
+  date?: number;
+  /**
+   * Phone number of the caller (= "from" number)
+   */
+  fromPhoneNumber?: string;
+  fromPhoneNrInfos?: TnsPhoneNumberIdentifyInfos;
+  /**
+   * Phone number of the called (= "to" number)
+   */
+  toPhoneNumber?: string;
+  toPhoneNrInfos?: TnsPhoneNumberIdentifyInfos;
+  direction?: TnsPhoneCallDirection;
+  /**
+   * True if a connection was established, otherwise will count as a "try"
+   */
+  connectionEstablished?: boolean;
+  /**
+   * Total duration of the call (plus ring time) in seconds
+   */
+  durationTotal?: number;
+  /**
+   * Duration of the call (only time of actual connection) in seconds
+   */
+  durationCall?: number;
+  /**
+   * (Optional) A group can be assigned to the call (as a string). This is an optional feature.
+   */
+  group?: string;
+  phoneParticipants?: Array<TnsPhoneParticipant>;
+};
+
+/**
+ * This object represents a remote support
+ */
+export type TnsRemoteMaintenanceWritable = {
+  /**
+   * "Identifier" used by the remote systems to identify this remote support
    *
    */
-  tags?: Array<TnsTagAssignmentTagOnly>;
+  remoteMaintenanceId?: string;
+  /**
+   * "Id" of the external remote support system, which is defined in the TANSS administration ("Externe Fernwartungs-Anbindungen verwalten").
+   * This field can't be set, as the Api token was created for a specific "type" and this value is fix.
+   *
+   */
+  typeId?: number;
+  /**
+   * "Identifier string" of the technician who has done this remote support. This can be used to "translate" the identifier of the technician
+   * to a TANSS employee id
+   *
+   */
+  userId?: string;
+  /**
+   * name of the technician who has done this remote support, this is mainly used for displaying issues
+   */
+  userName?: string;
+  /**
+   * Id of the technician who has done this remote support (TANSS employee id). This can be omitted if the id is not known
+   * or the "userId" can be "translated"
+   *
+   */
+  employeeId?: number;
+  /**
+   * "Identifier string" or unique name of the device the remote support was executed for. This can be used via a "translation table" to
+   * get the company and/or assignment.
+   *
+   */
+  deviceId?: string;
+  /**
+   * Simply the name of the device the remote support was executed for. This is mainly used for displying issues.
+   */
+  deviceName?: string;
+  /**
+   * id of the company for this remote support
+   */
+  companyId?: number;
+  /**
+   * LinkTypeId of the assignment (if known)
+   */
+  linkTypeId?: number;
+  /**
+   * LinkId of the assignment (if known)
+   */
+  linkId?: number;
+  /**
+   * Unix timestamp of the begin for this remote support
+   */
+  startTime?: number;
+  /**
+   * Unix timestamp of the end for this remote support
+   */
+  endTime?: number;
+  /**
+   * (optional) comment of the remote support
+   */
+  comment?: string;
+};
+
+/**
+ * defines a company type
+ */
+export type TnsCompanyTypeWritable = {
+  /**
+   * name of the company type
+   */
+  name?: string;
+  /**
+   * id of the category for this type
+   */
+  categoryId?: number;
+  /**
+   * name of the category for this type
+   */
+  categoryName?: string;
+  /**
+   * if this company type has an icon, here the name is given
+   */
+  icon?: string;
+  /**
+   * if true, the company type is hidden
+   */
+  hidden?: boolean;
+};
+
+export type CompanyDetailWritable = {
+  /**
+   * This is the "displayed id" (=Kundennummer) of the company. The id must be unique, a customer nr. could be used multiple times
+   */
+  displayId?: string;
+  /**
+   * name of the company
+   */
+  name?: string;
+  /**
+   * matchcode (used for searching)
+   */
+  matchcode?: string;
+  /**
+   * street
+   */
+  street?: string;
+  /**
+   * postal code
+   */
+  postcode?: string;
+  /**
+   * city
+   */
+  city?: string;
+  /**
+   * country
+   */
+  country?: string;
+  /**
+   * a note for this company
+   */
+  note?: string;
+  /**
+   * if this company is a subsidiary, then here the id of the "central" / "headquerter" company is given
+   */
+  headquarterId?: number;
+  /**
+   * e-Mail
+   */
+  email?: string;
+  /**
+   * website
+   */
+  website?: string;
+  /**
+   * a support info (internal remark) can be used here
+   */
+  supportInfo?: string;
+  /**
+   * if true, this company is locked
+   */
+  lockout?: boolean;
+  /**
+   * if company is locked, a reason can be given here
+   */
+  lockoutReason?: string;
+  /**
+   * If true, the company is inactive
+   */
+  inactive?: boolean;
+  /**
+   * phone number
+   */
+  telephone?: string;
+  /**
+   * telefax number
+   */
+  telefax?: string;
+  types?: Array<TnsCompanyTypeWritable>;
 };
 
 /**
@@ -6401,14 +7332,692 @@ export type TimestampInfoWithHistoryWritable = TimestampInfo & {
 };
 
 /**
+ * Defines a configuration for automatical pause subtraction.
+ *
+ * This is needed because longer working periods must contain certain pauses.
+ *
+ */
+export type TimestampPauseConfigWritable = {
+  /**
+   * Describes the amount of minutes needed to require a minimum pause (defined in "minimumPause")
+   */
+  fromMinutes?: number;
+  /**
+   * A working period must contain at least a pause of x minutes
+   */
+  minimumPause?: number;
+};
+
+/**
+ * TANSS chat
+ */
+export type TnsChatWritable = {
+  /**
+   * if a general chat (without assignment) is created, a description is needed
+   */
+  description?: string;
+  /**
+   * linkType of assignment
+   */
+  linkTypeId?: number;
+  /**
+   * id of assignment
+   */
+  linkId?: number;
+  status?: TnsChatStatus;
+  /**
+   * id of employee who has closed this chat
+   */
+  closedByEmployeeId?: number;
+  /**
+   * timestamp of an expected response (if chat has an expected response)
+   */
+  expectedResponseTime?: number;
+  /**
+   * id of employee who has created this chat
+   */
+  createdByEmployeeId?: number;
+  /**
+   * timestamp of an chat creation
+   */
+  creationDate?: number;
+};
+
+/**
+ * TANSS chat (including info regarding messages, participants, logs)
+ */
+export type TnsChatDetailWritable = TnsChatWritable & {
+  messages?: Array<TnsChatMessage>;
+  participants?: Array<TnsChatParticipant>;
+  logs?: Array<TnsChatLog>;
+};
+
+/**
+ * This object represents an "erp selection" profile to be used in offer templates
+ */
+export type TnsOfferErpSelectionWritable = {
+  /**
+   * variable name of the erp selection.
+   *
+   * This name is used in the offer template within the {ERP:...} syntax
+   *
+   */
+  variableName?: string;
+  /**
+   * This prompt will be shown when a user shall specify some material within an offer.
+   */
+  prompt?: string;
+  mats?: Array<TnsOfferErpSelectionMaterialWithMaterial>;
+};
+
+/**
+ * Describes an offer template
+ */
+export type TnsOfferTemplateWritable = {
+  /**
+   * name of the offer template
+   */
+  name?: string;
+  /**
+   * timestamp of the creation of this offer template
+   */
+  creationDate?: number;
+  /**
+   * id of the employee who has created this offer template
+   */
+  createdByEmployeeId?: number;
+  /**
+   * if the offer template is a "newer" version of another template, the old template (pervious id) goes here
+   */
+  previousId?: number;
+  /**
+   * you can define here how long (in days) a generated offer will be valid
+   */
+  validInDays?: number;
+};
+
+/**
+ * Describes an offer template, including attached erp selections
+ */
+export type TnsOfferTemplateDetailsWritable = TnsOfferTemplateWritable & {
+  erpSelections?: Array<TnsOfferErpSelectionWritable>;
+};
+
+/**
+ * Describes an offer template, including attached erp selections and processed vars
+ */
+export type TnsOfferTemplateVarsWritable = TnsOfferTemplateDetailsWritable & {
+  vars?: Array<TnsChecklistItemVar>;
+};
+
+/**
+ * Describes an offer
+ */
+export type TnsOfferWritable = {
+  /**
+   * name of the offer
+   */
+  name?: string;
+  /**
+   * creation date of this offer
+   */
+  date?: number;
+  /**
+   * id othe employee who has created this offer
+   */
+  createdByEmployeeId?: number;
+  /**
+   * link type of the offer assignment
+   */
+  linkTypeId?: number;
+  /**
+   * id of the offer assignment
+   */
+  linkId?: number;
+  /**
+   * date which the offer expires
+   */
+  validTill?: number;
+};
+
+/**
+ * Describes an offer, may include workflows as well
+ */
+export type TnsOfferListWritable = TnsOfferWritable & {
+  workflows?: Array<TnsWorkflowContractWithTokens>;
+};
+
+/**
+ * Describes an offer, including variables and material
+ */
+export type TnsOfferDetailsWritable = TnsOfferWritable & {
+  vars?: Array<TnsOfferVariable>;
+  mats?: Array<TnsOfferMaterial>;
+};
+
+export type TnsAvailabilityInfoWritable = {
+  /**
+   * id of the employee
+   */
+  employeeId?: number;
+  availability?: TnsAvailability;
+  /**
+   * list of absenced the employee has right now
+   */
+  absences?: Array<TnsSupportSmallWritable>;
+  /**
+   * list of appointments the employee has right now
+   */
+  appointments?: Array<TnsSupportSmallWritable>;
+  /**
+   * specific informations about absences, when they will end.
+   *
+   * They key ist the id of the absence, the value is an info object regarding infos
+   *
+   */
+  endInfos?: {
+    [key: string]: TnsVacationEndInfo;
+  };
+};
+
+/**
+ * represents a tag
+ */
+export type TnsTagWithoutGroupTagWritable = {
+  /**
+   * name of the tag
+   */
+  name?: string;
+  /**
+   * background color of the tag (in hex, for example FF0000 - max. 6 chars!)
+   */
+  backgroundColor?: string;
+  /**
+   * font color of the tag (in hex, for example FF0000 - max. 6 chars!)
+   */
+  fontColor?: string;
+  /**
+   * description of the tag (optional)
+   */
+  description?: string;
+  /**
+   * name of image (optional)
+   */
+  image?: string;
+  /**
+   * id of the group tag
+   */
+  groupTagId?: number;
+  /**
+   * inherit visibilities from group tag
+   */
+  groupTagInheritance?: boolean;
+  /**
+   * is the tag a parent for other tags
+   */
+  isGroupParent?: boolean;
+  /**
+   * visibility assignments (departments, employees, company categories, ticket types)
+   */
+  visibilities?: Array<TnsTagAssignment>;
+};
+
+/**
+ * represents a tag
+ */
+export type TnsTagWritable = TnsTagWithoutGroupTagWritable & {
+  groupTag?: TnsTagWithoutGroupTagWritable;
+};
+
+/**
+ * Defines a callback
+ */
+export type TnsCallbackWritable = {
+  /**
+   * The callback is assigned to this employee (This person has to do the call)
+   */
+  toEmployeeId?: number;
+  /**
+   * Callbacks can be assigned to a special department. Every employee of this department sees the callback.
+   */
+  toDepartmentId?: number;
+  /**
+   * Here, the id of the company is given which has to be called back
+   */
+  companyId?: number;
+  /**
+   * same as "companyId", but here a string can be given (i.e. if the company wasn't created yet in TANSS)
+   */
+  companyName?: string;
+  /**
+   * Here, the id of the employee is given (who has to be called back)
+   */
+  employeeId?: number;
+  /**
+   * same as "employeeId", but here a string can be given (i.e. if the employee wasn't created yet in TANSS)
+   */
+  employeeName?: string;
+  /**
+   * You must define the phone number here
+   */
+  phoneNumber?: string;
+  /**
+   * (Optional) Further information regarding the callback
+   */
+  info?: string;
+  state?: TnsCallbackState;
+  /**
+   * priority of the callback from 1 (lowest) to 9 (highest)
+   */
+  priority?: number;
+  /**
+   * If the callback has to be "later" than a specific time, give here the minimum date for the callback
+   */
+  callbackAfterTime?: number;
+  /**
+   * If the callback has to be processed before a given date, specify this "latest" date here
+   */
+  callbackUntilTime?: number;
+  /**
+   * If the callback is assigned to a ticket (or other assignment), linkType is given here
+   */
+  linkTypeId?: number;
+  /**
+   * If the callback is assigned to a ticket (or other assignment), the id is given here
+   */
+  linkId?: number;
+};
+
+/**
+ * ticket model with all fields
+ */
+export type TnsCallbackWithLogWritable = TnsCallbackWritable & {
+  stateLog?: Array<TnsCallbackStateLog>;
+};
+
+/**
+ * object containing a found company with all associated infos
+ */
+export type TnsCompanySearchResultWritable = {
+  /**
+   * id fo the company
+   */
+  id?: number;
+  /**
+   * name of the company
+   */
+  name?: string;
+  /**
+   * street of the company
+   */
+  street?: string;
+  /**
+   * postal code of the company
+   */
+  postCode?: string;
+  /**
+   * city of the company
+   */
+  city?: string;
+  /**
+   * country of the company
+   */
+  country?: string;
+  /**
+   * display if (customer nr.)
+   */
+  displayId?: string;
+  /**
+   * phone number
+   */
+  phoneNumber?: string;
+  /**
+   * fax number
+   */
+  faxNumber?: string;
+  /**
+   * e-Mail of the company
+   */
+  email?: string;
+  /**
+   * website of the company
+   */
+  website?: string;
+  /**
+   * if the company is incative, info is given here
+   */
+  inactive?: boolean;
+  /**
+   * defines, if the company is locked (n service may be entered)
+   */
+  lockout?: boolean;
+  centralType?: TnsCompanyCentralType;
+  /**
+   * defines if the company is a "private customer"
+   */
+  personalCustomer?: boolean;
+  /**
+   * mobile phone number (only if its a private customer)
+   */
+  mobileNumber?: string;
+  /**
+   * private phone number (only if its a private customer)
+   */
+  privateNumber?: string;
+  types?: Array<TnsCompanyTypeWritable>;
+  anticipatedCallbacks?: Array<TnsAnticipatedCallbackSearchResult>;
+};
+
+/**
+ * object representing the search results
+ */
+export type TnsSearchResultWritable = {
+  companies?: Array<TnsCompanySearchResultWritable>;
+  employees?: Array<TnsEmployeeSearchResult>;
+  tickets?: Array<TnsTicketSearchResult>;
+};
+
+/**
+ * A single support entry as returned by `PUT /api/v1/supports/list`. This is deliberately NOT the full `TnsSupport` model: the list endpoint serialises a reduced, permission-dependent projection (backend: `TnsSupportListService.getListFilters()` + `TnsSupportFilter`). Fields that belong only to the detail view (`GET /api/v1/supports/{id}`) or the create/update model are NOT part of the list response, e.g. `driveType`, the drive `*Charged` flags, `taskId`, `zoneId`, `orderedViaId`, `softwareLicenseId`, `importType`, `installationFeeDriveMode`, `teamsUrl`, `serviceLocationId`, `separateBilling` and `reasonNotChargedText`. In addition, single fields are omitted depending on the caller's rights, licensed modules and configuration, e.g. `hourlyRate` (right VIEW_HOURLY_RATE), `voucherId` (VIEW_VOUCHERS), `internal` / `textIntern` (may-see-internal-entities), `accountingTypeId` / `createdEmployeeId` (customer logins), `duration*` (SHOW_SUPPORT_DURATION_FOR_CUSTOMER), `ticketId` / `externalTicketId` (module TICKET / config TICKET_EXTERNAL_ID_ACTIVATED), `contractId` (module MAINTENANCE).
+ */
+export type TnsSupportListWritable = {
+  /**
+   * id of this support
+   */
+  id?: number;
+  /**
+   * id of the connected ticket (omitted if module TICKET is not licensed)
+   */
+  ticketId?: number;
+  /**
+   * link type of the assignment
+   */
+  linkTypeId?: number;
+  /**
+   * id of the assignment
+   */
+  linkId?: number;
+  /**
+   * id of the company for this support
+   */
+  companyId?: number;
+  /**
+   * id of the employee who has done this support
+   */
+  employeeId?: number;
+  /**
+   * id of the employee who created this support (omitted for customer logins)
+   */
+  createdEmployeeId?: number;
+  /**
+   * id of the department assigned to this support
+   */
+  departmentId?: number;
+  /**
+   * id of the cost center
+   */
+  costCenterId?: number;
+  /**
+   * id of the support type
+   */
+  typeId?: number;
+  /**
+   * id of the accounting type used for this support (omitted for customers lacking the right)
+   */
+  accountingTypeId?: number;
+  /**
+   * id of the maintenance contract (omitted if module MAINTENANCE is not licensed)
+   */
+  contractId?: number;
+  /**
+   * id of the car (if a car is used)
+   */
+  carId?: number;
+  /**
+   * beginning of the support
+   */
+  date?: number;
+  /**
+   * duration of the service in minutes (omitted for customers lacking SHOW_SUPPORT_DURATION_FOR_CUSTOMER)
+   */
+  duration?: number;
+  /**
+   * duration which is not charged (in minutes)
+   */
+  durationNotCharged?: number;
+  /**
+   * duration (in minutes) of the approach (drive)
+   */
+  durationApproach?: number;
+  /**
+   * duration (in minutes) of the departure (drive)
+   */
+  durationDeparture?: number;
+  /**
+   * duration of the pause (in minutes)
+   */
+  durationBreak?: number;
+  /**
+   * timestamp when the pause starts (0 if no pause is given)
+   */
+  startBreak?: number;
+  /**
+   * km of the approach (drive)
+   */
+  kmApproach?: number;
+  /**
+   * km of the departure (drive)
+   */
+  kmDeparture?: number;
+  location?: TnsSupportLocation;
+  planningType?: TnsPlanningType;
+  supportIconType?: TnsSupportIconType;
+  clearanceStatus?: TnsSupportClearanceStatus;
+  export?: TnsVoucherExportState;
+  /**
+   * description / text for this support entry (may be truncated, see meta.properties.extras.truncateTextLength)
+   */
+  text?: string;
+  /**
+   * internal remarks (only present if the caller may see internal entities)
+   */
+  textIntern?: string;
+  /**
+   * erp number of the support (if entered)
+   */
+  erpNumber?: string;
+  /**
+   * external ticket number (only present with module TICKET and config TICKET_EXTERNAL_ID_ACTIVATED)
+   */
+  externalTicketId?: string;
+  /**
+   * whether the support was already booked
+   */
+  booked?: boolean;
+  /**
+   * if this support is marked as "internal" (only present if the caller may see internal entities)
+   */
+  internal?: boolean;
+  /**
+   * true if this support was created by a customer login
+   */
+  extern?: boolean;
+  /**
+   * true if this support was booked after consultation ("Rücksprache")
+   */
+  consultation?: boolean;
+  /**
+   * whether the support is billed as a fixed-price installation fee
+   */
+  installationFee?: boolean;
+  /**
+   * amount of the installation fee (only present for technicians/freelancers)
+   */
+  installationFeeAmount?: number;
+  /**
+   * id of the installation fee type
+   */
+  installationFeeTypeId?: number;
+  /**
+   * hourly rate for this support (only present with the right VIEW_HOURLY_RATE)
+   */
+  hourlyRate?: number;
+  /**
+   * percent that shall be applied
+   */
+  percent?: number;
+  /**
+   * id of the voucher this support was booked to (only present with the right VIEW_VOUCHERS)
+   */
+  voucherId?: number;
+  /**
+   * id of the "not charged reason" (if the support was completely not charged)
+   */
+  reasonNotChargedId?: number;
+  /**
+   * id of the "not charged reason" (if the support was partially not charged)
+   */
+  reasonPartialNotChargedId?: number;
+  /**
+   * id of the linked vacation request (0 if none)
+   */
+  vacationRequestId?: number;
+  /**
+   * link type of a related entity (0 if none)
+   */
+  relationshipLinkTypeId?: number;
+  /**
+   * link id of a related entity (0 if none)
+   */
+  relationshipLinkId?: number;
+  /**
+   * true if this support is a synced Outlook/TANSS2Ex appointment
+   */
+  outlook?: boolean;
+  /**
+   * title for outlook appointments
+   */
+  outlookTitle?: string;
+  /**
+   * location for outlook appointments
+   */
+  outlookLocation?: string;
+  metaInfos?: TnsSupportMetaInfos;
+  /**
+   * Tags assigned to the support (only present for technicians/freelancers).
+   *
+   * The field can also be **sent** when a support is created or updated. Every entry
+   * references an existing tag by its `id`:
+   *
+   * ```json
+   * "tags": [{"id": 123}]
+   * ```
+   *
+   * Only `id` is evaluated - all other tag fields are ignored (see `TnsTag-Assign`).
+   * On create every listed tag is assigned. On update the list is the **complete** set
+   * of tags for this support: tags which are missing from the list are removed again
+   * (except tags which the current user may not remove). Omit the field completely to
+   * leave the existing assignments untouched.
+   *
+   */
+  tags?: Array<TnsTagWritable>;
+  /**
+   * material booked on the support (present when material is fetched)
+   */
+  material?: Array<unknown>;
+};
+
+/**
  * model for creating a new support
  */
-export type TnsSupportCreateWritable = TnsSupport & {
+export type TnsSupportCreateWritable = TnsSupportWritable & {
   /**
    * id of the remitter (employee who ordered the support)
    */
   remitterId?: number;
   ticket?: TicketSaveWritable;
+};
+
+/**
+ * describes a support type
+ */
+export type TnsSupportTypeWritable = {
+  /**
+   * name of the support type
+   */
+  name?: string;
+  /**
+   * true, if this support type is hidden (not visible in UI)
+   */
+  hidden?: boolean;
+  /**
+   * true, if this support type is not charged
+   */
+  notCharged?: boolean;
+  /**
+   * id of the not charged reason used for this support type (if not charged)
+   */
+  notChargedReasonId?: number;
+  /**
+   * description of the support type
+   */
+  description?: string;
+};
+
+/**
+ * Ticket board panel
+ */
+export type TnsTicketBoardPanelWritable = {
+  /**
+   * Panel name
+   */
+  name?: string;
+  /**
+   * Panel project id
+   */
+  projectId?: number;
+  /**
+   * Panel employee id
+   */
+  employeeId?: number;
+  panelType?: TnsTicketBoardPanelType;
+  registerType?: TnsTicketBoardRegisterType;
+  visibility?: TnsTicketBoardPanelVisibility;
+  /**
+   * Array of panel companies
+   */
+  companies?: Array<TnsTicketBoardPanelCompany>;
+  /**
+   * Array of panel employees
+   */
+  employees?: Array<TnsTicketBoardPanelEmployee>;
+  /**
+   * Array of panel departments
+   */
+  departments?: Array<TnsTicketBoardPanelDepartment>;
+  /**
+   * Array of panel tags
+   */
+  tags?: Array<TnsTicketBoardPanelTag>;
+  /**
+   * Array of panel ticket types
+   */
+  ticketTypes?: Array<TnsTicketBoardPanelTicketType>;
+  /**
+   * Array of panel ticket status
+   */
+  ticketStatus?: Array<TnsTicketBoardPanelTicketStatus>;
+  filter?: TnsTicketBoardPanelFilter;
+};
+
+/**
+ * Ticket board
+ */
+export type TnsTicketBoardWritable = {
+  /**
+   * Array of panels
+   */
+  panels?: Array<TnsTicketBoardPanelWritable>;
 };
 
 /**
@@ -6440,6 +8049,931 @@ export type TnsTicketBoardPanelRegistersWritable = {
 };
 
 /**
+ * Describes a pc or server
+ */
+export type TnsPersonalComputerWritable = {
+  /**
+   * inventory number
+   */
+  inventoryNumber?: string;
+  /**
+   * is this pc active or not ?
+   */
+  active?: boolean;
+  /**
+   * id of the company which this pc is assigned to
+   */
+  companyId?: number;
+  /**
+   * hostname
+   */
+  name?: string;
+  /**
+   * id of the responsible service technician
+   */
+  serviceTechnicianId?: number;
+  /**
+   * id of employee, which this pc is assigned to
+   */
+  employeeId?: number;
+  /**
+   * date when this pc was purchased
+   */
+  date?: number;
+  /**
+   * location / room of this pc
+   */
+  location?: string;
+  /**
+   * id of the manufacturer of this pc
+   */
+  manufacturerId?: number;
+  /**
+   * describes the "model" of the pc. This field often is used to describe the pc (mostly in lists)
+   */
+  model?: string;
+  /**
+   * serial number
+   */
+  serialNumber?: string;
+  /**
+   * id of the operating system
+   */
+  osId?: number;
+  /**
+   * a text field which contains infos about installed software
+   */
+  software?: string;
+  /**
+   * a text field which contains misc. infos / remarks about this pc
+   */
+  remark?: string;
+  /**
+   * if true, the remark will be shown as popup when this pc is selected in a support/ticket mask and the employee has the permission
+   */
+  showRemark?: boolean;
+  /**
+   * id of the mainboard manufacturer
+   */
+  mainboardManufacturerId?: number;
+  /**
+   * revision of the mainboard
+   */
+  mainboardRevision?: string;
+  /**
+   * serial number of the mainboard
+   */
+  mainboardSerialNumber?: string;
+  /**
+   * infos about the bios
+   */
+  bios?: string;
+  /**
+   * release infos of the bios
+   */
+  biosRelease?: string;
+  /**
+   * id of the cpu manufacturer
+   */
+  cpuManufacturerId?: number;
+  /**
+   * id of the cpu type
+   */
+  cpuTypeId?: number;
+  /**
+   * frequency of the cpu (in MHz)
+   */
+  cpuFrequency?: number;
+  /**
+   * number of cpus
+   */
+  cpuNumber?: number;
+  /**
+   * serial number of the mouse
+   */
+  mouseSerialNumber?: string;
+  /**
+   * serial number of the keyboard
+   */
+  keyboadSerialNumber?: string;
+  /**
+   * true if this pc is a server
+   */
+  server?: boolean;
+  /**
+   * internal remarks of the pc (can contain passwords), which only is seen by technicians or freelancers with the given permission
+   */
+  internalRemark?: string;
+  /**
+   * infos about the billing number which this pc was purchased
+   */
+  billingNumber?: string;
+  /**
+   * article number of the pc
+   */
+  articleNumber?: string;
+  /**
+   * manufacturer number of this pc
+   */
+  manufacturerNumber?: string;
+  /**
+   * if this pc is a virtual host, then here the id of the host is given
+   */
+  hostId?: number;
+  /**
+   * purchase price of this pc
+   */
+  purchasePrice?: number;
+  /**
+   * selling price of this pc
+   */
+  sellingPrice?: number;
+  ownageType?: TnsDeviceOwnageType;
+  /**
+   * id of the storage, the pc is contained in
+   */
+  storageId?: number;
+  /**
+   * TeamViewer id
+   */
+  teamviewerId?: string;
+  /**
+   * TeamViewer password
+   */
+  teamviewerPassword?: string;
+  /**
+   * AnyDesk id
+   */
+  anydeskId?: string;
+  /**
+   * AnyDesk password
+   */
+  anydeskPassword?: string;
+  /**
+   * reserved ram for this virtual host
+   */
+  reservedRam?: number;
+  /**
+   * reserved hard disk space reserved for this virtual host
+   */
+  reservedHardDisk?: number;
+  /**
+   * reserved cpu capacity reserved for this virtual host
+   */
+  reservedCpu?: number;
+  /**
+   * misc. description infos for this pc
+   */
+  description?: string;
+};
+
+/**
+ * Describes a pc or server with infos (ip address, guarantee)
+ */
+export type TnsPersonalComputerWithIpGuaranteeWritable = TnsPersonalComputerWritable & {
+  ips?: Array<TnsIpMacWithServiceAssignments>;
+  guarantee?: TnsGuarantee;
+};
+
+/**
+ * Describes a pc component
+ */
+export type TnsComponentWritable = {
+  /**
+   * inventory number of this component
+   */
+  inventoryNumber?: string;
+  /**
+   * id of the component type
+   */
+  componentTypeId?: number;
+  /**
+   * the component is built into this pc (0 if the component ist not attached to a pc)
+   */
+  pcId?: number;
+  /**
+   * if the component is built into a periphery, here the id is given
+   */
+  peripheryId?: number;
+  /**
+   * id of the components manufacturer
+   */
+  manufacturerId?: number;
+  /**
+   * type of the component. This is mostly used to "describe" the component in lists
+   */
+  type?: string;
+  /**
+   * serial number of the component
+   */
+  serialNumber?: string;
+  /**
+   * capcity (in megbytes), which is used to determine the size of ram or HDDs
+   */
+  megabytes?: number;
+  /**
+   * id of the HDD type
+   */
+  hddTypeId?: number;
+  /**
+   * SCSI id
+   */
+  scsiId?: string;
+  /**
+   * if true, the component is "onboard"
+   */
+  onBoard?: boolean;
+  /**
+   * id of the company, which this component is assigned to. Only relevant if the component is not built into a pc!
+   */
+  companyId?: number;
+  /**
+   * remarks for this component
+   */
+  remark?: string;
+  /**
+   * true, if the component is active
+   */
+  active?: boolean;
+  /**
+   * date when the component was purchased (or entered into the system)
+   */
+  date?: number;
+  /**
+   * infos about the billing number which this component was purchased
+   */
+  billingNumber?: string;
+  /**
+   * article number of the component
+   */
+  articleNumber?: string;
+  /**
+   * id of the storage, the component is contained in
+   */
+  storageId?: number;
+  /**
+   * purchase price of this component
+   */
+  purchasePrice?: number;
+  /**
+   * selling price of this component
+   */
+  sellingPrice?: number;
+  /**
+   * misc. description infos for this component
+   */
+  description?: string;
+};
+
+/**
+ * Describes a periphery
+ */
+export type TnsPeripheryWritable = {
+  /**
+   * id of the assigned company
+   */
+  companyId?: number;
+  /**
+   * date when the device was purchased (or entered into the system)
+   */
+  date?: number;
+  /**
+   * id of the periphery type
+   */
+  peripheryTypeId?: number;
+  /**
+   * id of the device manufacturer
+   */
+  manufacturerId?: number;
+  /**
+   * type of the periphery. This is mostly used to "describe" the periphery in lists
+   */
+  type?: string;
+  /**
+   * location / room of this device
+   */
+  location?: string;
+  /**
+   * remarks for this component
+   */
+  remark?: string;
+  /**
+   * internal remarks of the device (can contain passwords), which only is seen by technicians or freelancers with the given permission
+   */
+  internalRemark?: string;
+  /**
+   * serial number of the device
+   */
+  serialNumber?: string;
+  /**
+   * inventory number of this device
+   */
+  inventoryNumber?: string;
+  /**
+   * infos of the version of this device
+   */
+  version?: string;
+  /**
+   * true, if the device is active
+   */
+  active?: boolean;
+  /**
+   * id of the assigned employee
+   */
+  employeeId?: number;
+  /**
+   * if the device is built into this pc, a pc id is given here
+   */
+  pcId?: number;
+  /**
+   * infos about the billing number which this component was purchased
+   */
+  billingNumber?: string;
+  /**
+   * article number of the component
+   */
+  articleNumber?: string;
+  /**
+   * id of the storage, the component is contained in
+   */
+  storageId?: number;
+  /**
+   * purchase price of this component
+   */
+  purchasePrice?: number;
+  /**
+   * selling price of this device
+   */
+  sellingPrice?: number;
+  ownageType?: TnsDeviceOwnageType;
+  /**
+   * hostname
+   */
+  name?: string;
+  /**
+   * misc. description infos for this device
+   */
+  description?: string;
+  /**
+   * manufacturer number of this device
+   */
+  manufacturerNumber?: string;
+  fields?: Array<TnsPeripheryFieldInfo>;
+};
+
+/**
+ * Describes a software license
+ */
+export type TnsSoftwarelicenseWritable = {
+  /**
+   * company id of the software license
+   */
+  companyId?: number;
+  /**
+   * misc. infos of for this software license
+   */
+  remark?: string;
+  /**
+   * internal remarks of the license (can contain passwords), which only is seen by technicians or freelancers with the given permission
+   */
+  internalRemark?: string;
+  /**
+   * serial number
+   */
+  serialNumber?: string;
+  /**
+   * inventory number
+   */
+  inventoryNumber?: string;
+  /**
+   * id of the sofware license type
+   */
+  softwarelicenseTypeId?: number;
+  /**
+   * date when the software license will expire
+   */
+  expirationDate?: number;
+  /**
+   * if true, the license must be renewed upon expiring and therefore needs further "attention"
+   */
+  renew?: boolean;
+  /**
+   * starting date for this software license
+   */
+  date?: number;
+  /**
+   * maximum number of installations
+   */
+  maxNumberOfInstall?: number;
+  /**
+   * number of volumes (i.e. cds)
+   */
+  numberOfVolumes?: number;
+  /**
+   * true if the software license is still active
+   */
+  active?: boolean;
+  /**
+   * id of employee which uses this software license
+   */
+  employeeId?: number;
+  /**
+   * article number of the component
+   */
+  articleNumber?: string;
+  /**
+   * price which is used in maintenace contracts
+   */
+  contractPrice?: number;
+  /**
+   * assignments of this software license to other entities
+   */
+  assignments?: Array<TnsAssignment>;
+};
+
+/**
+ * Describes a pc or server with all "attached" infos
+ */
+export type TnsPersonalComputerWithDetailsWritable = TnsPersonalComputerWithIpGuaranteeWritable & {
+  serviceIcons?: Array<TnsServiceIcon>;
+  /**
+   * infos about components which are built into this pc
+   */
+  components?: Array<TnsComponentWritable>;
+  /**
+   * infos about peripheries which are linked to this pc
+   */
+  peripheries?: Array<TnsPeripheryWritable>;
+  /**
+   * infos about software licenses which are used by this pc
+   */
+  softwarelicenses?: Array<TnsSoftwarelicenseWritable>;
+};
+
+/**
+ * Describes a periphery with all "ip" infos
+ */
+export type TnsPeripheryWithIpWritable = TnsPeripheryWritable & {
+  ips?: Array<TnsIpMacWithServiceAssignments>;
+};
+
+/**
+ * Describes a periphery with all "attached" infos
+ */
+export type TnsPeripheryWithIpGuaranteeWritable = TnsPeripheryWithIpWritable & {
+  guarantee?: TnsGuarantee;
+};
+
+/**
+ * Periphery type
+ */
+export type TnsPeripheryTypeWritable = {
+  /**
+   * name of the periphery type
+   */
+  name?: string;
+  /**
+   * icon used when displaying peripheries of this type
+   */
+  image?: string;
+};
+
+/**
+ * Component type
+ */
+export type TnsComponentTypeWritable = {
+  /**
+   * name of the component type
+   */
+  type?: string;
+  /**
+   * short name of the component type
+   */
+  shortName?: string;
+  /**
+   * if false, this type won't be shown in the select field (meaning its an inactive type)
+   */
+  shown?: boolean;
+};
+
+/**
+ * object representing an employee
+ */
+export type EmployeeWritable = {
+  /**
+   * full name of the employee
+   */
+  name?: string;
+  /**
+   * first name of the employee
+   */
+  firstName?: string;
+  /**
+   * last name of the employee
+   */
+  lastName?: string;
+  /**
+   * id of the salutation for this employee
+   */
+  salutationId?: number;
+  /**
+   * id of the department which tis employee is assigned to
+   */
+  departmentId?: number;
+  /**
+   * location / room of the employee
+   */
+  room?: string;
+  /**
+   * main telephone number
+   */
+  telephoneNumber?: string;
+  /**
+   * e-Mail address
+   */
+  emailAddress?: string;
+  /**
+   * if this employee is assigned to a specific car, the id goes here
+   */
+  carId?: number;
+  /**
+   * mobile telephone number
+   */
+  mobilePhone?: string;
+  /**
+   * initials for this employee
+   */
+  initials?: string;
+  /**
+   * working hour model for this employee
+   */
+  workingHourModelId?: number;
+  /**
+   * id of the accounting type for this employee
+   */
+  accountingTypeId?: number;
+  /**
+   * private telephone number
+   */
+  privatePhoneNumber?: string;
+  /**
+   * true if the employee is active
+   */
+  active?: boolean;
+  erpNumber?: string;
+  /**
+   * fax number
+   */
+  personalFaxNumber?: string;
+  /**
+   * role for this employee
+   */
+  role?: string;
+  /**
+   * if the employee uses a title, the id goes here
+   */
+  titleId?: number;
+  /**
+   * language which this employee uses
+   */
+  language?: string;
+  /**
+   * second telephone number
+   */
+  telephoneNumberTwo?: string;
+  /**
+   * second mobile telephone number
+   */
+  mobileNumberTwo?: string;
+  /**
+   * true, if the user has a "restricted" user license (if he/she is from the own company). restricted user licenses won't use a user license
+   */
+  restrictedUserLicense?: boolean;
+  /**
+   * birthday in the format "YYYY-MM-DD"
+   */
+  birthday?: string;
+};
+
+/**
+ * Company object to be saved.
+ */
+export type CompanyPostWritable = CompanyDetailWritable & {
+  /**
+   * defines if this company is a "personal customer" - meaning that company and employee are the same person
+   */
+  personalCustomer?: boolean;
+  personalCustomerEmployee?: EmployeeWritable;
+};
+
+export type TnsTanssEventRuleWritable = {
+  /**
+   * defines a "name" for the rule
+   */
+  name?: string;
+  /**
+   * true if the rule is active. If "false", rule won't trigger notifications
+   */
+  active?: boolean;
+  /**
+   * defines for which "assignments" a rule shall be triggered (currently only used for ticket board panels)
+   */
+  assignments?: Array<TnsTanssEventRuleAssignment>;
+  /**
+   * defines which actions will be triggered when executing the rule
+   */
+  actions?: Array<TnsTanssEventRuleAction>;
+};
+
+/**
+ * ticket content of a tanss event
+ */
+export type TnsTanssEventTicketContentWritable = {
+  ticket?: TnsTanssEventTicketObject;
+  oldValues?: TnsTanssEventTicketObject;
+  comment?: TnsTanssEventPostingObject;
+  mail?: TnsTanssEventMailObject;
+  support?: TnsTanssEventSupportObject;
+  /**
+   * if tags were added, here the list of added tags is given
+   */
+  addedTags?: Array<TnsTagWritable>;
+  /**
+   * if tags were removed, here the list of removed tags is given
+   */
+  removedTags?: Array<TnsTagWritable>;
+};
+
+/**
+ * Describes a tanss event / activity feed item
+ */
+export type TnsTanssEventWritable = {
+  id?: number;
+  /**
+   * id of the employee who this event is for
+   */
+  employeeId?: number;
+  linkType?: TnsLinkType;
+  /**
+   * id of the assignment, which this event refers to
+   */
+  linkId?: number;
+  triggerType?: TnsTanssEventTriggerType;
+  content?: TnsTanssEventTicketContentWritable;
+};
+
+/**
+ * represents a service (which can be assigned to an ip address on a pc/periphery)
+ */
+export type TnsServiceWritable = {
+  /**
+   * name of the service
+   */
+  text?: string;
+  /**
+   * filename of the image representing the service
+   */
+  symbol?: string;
+  /**
+   * command which shall be executed (via batch file)
+   *
+   * %1% is the placeholder which contains the ip address
+   *
+   */
+  command?: string;
+  /**
+   * is service active or not
+   */
+  active?: boolean;
+  callType?: TnsServiceCallType;
+};
+
+/**
+ * representing a operating system to be used for pc/servers
+ */
+export type TnsPersonalComputerOperatingSystemWritable = {
+  /**
+   * name of the os
+   */
+  name?: string;
+  /**
+   * define if this os is only to be used for servers
+   */
+  serverOperatingSystem?: boolean;
+  /**
+   * define if this os is still active/used
+   */
+  active?: boolean;
+  /**
+   * (optional) article number used in erp
+   */
+  articleNumber?: string;
+};
+
+/**
+ * representing a manufacturer
+ */
+export type TnsManufacturerWritable = {
+  /**
+   * name of the manufacturer
+   */
+  name?: string;
+};
+
+/**
+ * representing a cpu to be used for pc/servers
+ */
+export type TnsPersonalComputerCpuWritable = {
+  /**
+   * name/type of the cpu
+   */
+  name?: string;
+};
+
+/**
+ * representing a hdd type
+ */
+export type TnsPersonalComputerHddTypeWritable = {
+  /**
+   * name/type of the hdd type
+   */
+  name?: string;
+};
+
+/**
+ * defines a company category
+ */
+export type TnsCompanyCategoryWritable = {
+  /**
+   * name of the company category
+   */
+  name?: string;
+};
+
+/**
+ * company category with all contained types
+ */
+export type TnsCompanyCategoryWithTypesWritable = TnsCompanyCategoryWritable & {
+  /**
+   * all types within this category
+   */
+  types?: Array<TnsCompanyTypeWritable>;
+};
+
+/**
+ * describes an email account (mailbox)
+ */
+export type TnsEmailAccountWritable = {
+  /**
+   * mail account is assigned to this company
+   */
+  companyId?: number;
+  /**
+   * name of the mailbox / description
+   */
+  description?: string;
+  /**
+   * login name
+   */
+  loginName?: string;
+  /**
+   * login password
+   */
+  loginPassword?: string;
+  /**
+   * name/address of the incoming mail server
+   */
+  incomingServer?: string;
+  /**
+   * name/address of the outgoing mail server
+   */
+  outgoingServer?: string;
+  /**
+   * are attachments sent?
+   */
+  sendAttachments?: boolean;
+  /**
+   * will archived mails be sent?
+   */
+  deleteArchived?: boolean;
+  /**
+   * shall tracking infos be sent?
+   */
+  sendTrackingInfos?: boolean;
+  /**
+   * is this a catch-all-mailbox?
+   */
+  catchAllAccount?: boolean;
+  /**
+   * list of assigned e-mail addresses
+   */
+  addresses?: Array<string>;
+  /**
+   * is this account activated?
+   */
+  active?: boolean;
+  /**
+   * id of the account type
+   */
+  typeId?: number;
+  /**
+   * if no existing type will match the account, you define a name for the type here
+   */
+  typeName?: string;
+  /**
+   * remark for this mail account
+   */
+  remark?: string;
+  /**
+   * linkType of the assignment for this mail account
+   */
+  linkTypeId?: number;
+  /**
+   * linkId of the assignment for this mail account
+   */
+  linkId?: number;
+  /**
+   * if the account is assigned to an domain, the id is given here
+   */
+  domainId?: number;
+};
+
+/**
+ * vacation request (or illness, absence, custom type, overtime, standBy, custom). If a custom type shall be stored, use the planningAdditionalId property to specify the custom type
+ */
+export type TnsVacationRequestWritable = {
+  planningType?: TnsPlanningType;
+  status?: TnsVacationRequestStatus;
+  /**
+   * start for this vacation request
+   */
+  startDate?: number;
+  /**
+   * start for this vacation request
+   */
+  endDate?: number;
+  /**
+   * id of the requester (employee)
+   */
+  requesterId?: number;
+  /**
+   * reason for this vacation request (optional)
+   */
+  requestReason?: string;
+  /**
+   * timestamp when this vacation request was initially created
+   */
+  requestDate?: number;
+  /**
+   * id of the supervisor (employee who has accepted/declined this request)
+   */
+  supervisorId?: number;
+  /**
+   * reason for accepting/declining this request (optional)
+   */
+  supervisorReason?: string;
+  /**
+   * timestamp when this vacation request was accepted or declined
+   */
+  supervisorDate?: number;
+  /**
+   * only if planningType is ABSENCE or CUSTOM / used for additional specification (Sonderurlaub, Kur, etc.)
+   */
+  planningAdditionalId?: number;
+  /**
+   * if a approval process is used for this vacation request - specifies the id of the process
+   */
+  processId?: number;
+  /**
+   * if a approval process is used for this vacation request - specifies the id of the current process step
+   */
+  processStepId?: number;
+  days?: Array<TnsVacationRequestDay>;
+};
+
+/**
+ * gives details on the vacation days of an employee
+ */
+export type TnsEmployeeVacationDaysWritable = {
+  /**
+   * employee id
+   */
+  employeeId?: number;
+  /**
+   * infos for which year
+   */
+  year?: number;
+  /**
+   * how many days does this employee have
+   */
+  numberOfDays?: number;
+  /**
+   * number of days transferred from the previous year
+   */
+  transferred?: number;
+};
+
+/**
  * represents a ticket state
  */
 export type TnsTicketStateWritable = {
@@ -6463,6 +8997,244 @@ export type TnsTicketStateWritable = {
    * is this an active state? (otherwise won't be shown)
    */
   active?: boolean;
+};
+
+/**
+ * a company document
+ */
+export type TnsDocumentWritable = {
+  /**
+   * creation date of the document
+   */
+  date?: number;
+  /**
+   * name of the document
+   */
+  name?: string;
+  type?: TnsDocumentTypeEnum;
+  /**
+   * id of the company for this document
+   */
+  companyId?: number;
+  /**
+   * is this an internal document? (not shown for customers)
+   */
+  internal?: boolean;
+  /**
+   * if this document is assigned to a pc/periphery etc. - give linkTypeId here
+   */
+  linkTypeId?: number;
+  /**
+   * if this document is assigned to a pc/periphery etc. - give linkId here
+   */
+  linkId?: number;
+  /**
+   * if true, the document will be stored encrypted in the database
+   */
+  encrypted?: boolean;
+};
+
+export type TnsDocumentWithContentWritable = TnsDocumentWritable & {
+  /**
+   * content of this document
+   */
+  content?: string;
+  /**
+   * Is only used if this document is "encrypted". In this case the decoded content is shown here
+   *
+   */
+  decodedContent?: string;
+};
+
+export type TnsDocumentWithFileWritable = TnsDocumentWithContentWritable & {
+  uploadedFile?: TnsDocumentFile;
+};
+
+/**
+ * represents a domain
+ */
+export type TnsDomainWritable = {
+  /**
+   * id of the company the domain belongs to
+   */
+  companyId?: number;
+  /**
+   * title for the domain
+   */
+  title?: string;
+  /**
+   * FQDN
+   */
+  fqdn?: string;
+  /**
+   * a description for this domain
+   */
+  description?: string;
+};
+
+export type TnsDomainFullWritable = TnsDomainWritable & {
+  /**
+   * Name of the provider
+   */
+  providerName?: string;
+  /**
+   * customer number
+   */
+  customerId?: string;
+  /**
+   * url for administration of this domain
+   */
+  adminUrl?: string;
+  /**
+   * login name
+   */
+  loginName?: string;
+  /**
+   * login password
+   */
+  loginPassword?: string;
+  /**
+   * start time of the contract
+   */
+  contractDurationStart?: number;
+  /**
+   * end time of the contract
+   */
+  contractDurationEnd?: number;
+  /**
+   * purchase price
+   */
+  purchasePrice?: number;
+  /**
+   * selling price
+   */
+  sellingPrice?: number;
+  /**
+   * usage for this domain (text)
+   */
+  utilization?: string;
+  /**
+   * if this domain is forwarded to another domain, give the id here
+   */
+  forwardDomainId?: number;
+  /**
+   * id of the employee who is responsible for this domain
+   */
+  responsibleTechId?: number;
+  /**
+   * certificate
+   */
+  certificate?: string;
+  /**
+   * certificate chain
+   */
+  certificateCa?: string;
+  /**
+   * IP V4 address
+   */
+  ipv4?: string;
+  /**
+   * IP V6 address
+   */
+  ipv6?: string;
+  /**
+   * link type for "owner" (company or employee link types possible)
+   */
+  ownerLinkTypeId?: number;
+  /**
+   * link id "owner" (id of company or employee, based on link type)
+   */
+  owner?: number;
+  /**
+   * link type for "adminc" (company or employee link types possible)
+   */
+  admincLinkTypeId?: number;
+  /**
+   * link id "adminc" (id of company or employee, based on link type)
+   */
+  adminc?: number;
+  /**
+   * link type for "techc" (company or employee link types possible)
+   */
+  techcLinkTypeId?: number;
+  /**
+   * link id "techc" (id of company or employee, based on link type)
+   */
+  techc?: number;
+};
+
+/**
+ * Describes a software license type including default values and pricing information.
+ */
+export type TnsSoftwarelicenseTypeWritable = {
+  /**
+   * Manufacturer article number.
+   */
+  manufacturerNumber?: string;
+  /**
+   * Name of the software license type.
+   */
+  name?: string;
+  /**
+   * Comment or description of the software license type.
+   */
+  comment?: string;
+  /**
+   * Reference to a previous software license type.
+   */
+  previousId?: number;
+  /**
+   * Indicates whether the software license type is active.
+   */
+  active?: boolean;
+  /**
+   * Default running time of the license (e.g. in months).
+   */
+  standardRunningTime?: number;
+  /**
+   * Indicates whether the license is renewed by default.
+   */
+  standardRenew?: boolean;
+  /**
+   * Default maximum number of installations.
+   */
+  standardMaxNumberOfInstallations?: number;
+  /**
+   * Internal article number.
+   */
+  articleNumber?: string;
+  /**
+   * Hierarchical path of the software license type.
+   */
+  path?: Array<string>;
+};
+
+/**
+ * An automated action attached to a checklist item, a multi-select option or — inside the IT
+ * portal wizard — to a card, widget or option.
+ *
+ */
+export type ChecklistEventWritable = {
+  /**
+   * Identifier of the checklist item this event belongs to.
+   */
+  checklistItemId?: number;
+  /**
+   * Identifier of the multi-select option this event is attached to, if any.
+   */
+  multiSelectOptionId?: number;
+  /**
+   * The kind of automated action this event performs.
+   */
+  type?: 'JUMP_TO_FIELD' | 'SEND_EMAIL' | 'CHANGE_TICKET_EMPLOYEE_DEPARTMENT' | 'CHANGE_TICKET_DUE' | 'ADD_TICKET_COMMENT' | 'ADD_CHECKLIST' | 'CREATE_TICKET' | 'CHANGE_TICKET_STATUS' | 'END_PROCESS' | 'APPROVAL_PROCESS' | 'CHANGE_TICKET_PRICE' | 'LOCK_OR_UNLOCK_TICKET' | 'ADD_ROLE' | 'CHANGE_RESUBMISSION' | 'SET_SEPARATE_BILLING' | 'SET_UPPER_LIMIT' | 'SET_INSTALLATION_FEE' | 'CHANGE_TICKET_TYPE' | 'CREATE_PASSWORD' | 'CHANGE_VISIBILITY' | 'CHANGE_ASSIGNMENT' | 'CHANGE_TICKET_DEADLINE' | 'ADD_TAG' | 'CHANGE_ESTIMATED_TIME' | 'SET_TICKET_TEXTS' | 'ESCALATION_CAN_BE_TRIGGERED_AGAIN' | 'CHANGE_PRIORITY' | 'RESET_RULE' | 'LOCAL_TICKET_ADMIN_FLAG' | 'REMOVE_CHECKLIST' | 'SET_COMPANY_TYPES' | 'SUGGEST_TICKET_FOR_FEEDBACK' | 'REMOVE_ROLE' | 'CONTRACT_WORKFLOW' | 'CHANGE_REPAIR_TICKET' | 'CHANGE_EXT_TICKET_NR' | 'CHANGE_TICKET_ORDER_NR' | 'CHANGE_COST_CENTER' | 'CHANGE_CLEARANCE_MODE' | 'SEND_SERVICE_REPORT' | 'APPOINTMENT_WIZARD' | 'ASSIGN_TO_PROJECT' | 'WEBHOOK' | 'SET_REMITTER' | 'SET_NOTIFICATION' | 'CLEAR_SUPPORTS' | 'SET_TICKET_TEXTS_BY_AI' | 'CREATE_TICKET_SUMMARY' | 'CREATE_SUPPORT' | 'START_TICKET_TIMER' | 'OPEN_SOLUTION_ASSISTANT';
+  /**
+   * Configuration value or payload for the event action.
+   */
+  value?: string;
+  /**
+   * Ordering position of the event within its item.
+   */
+  pos?: number;
 };
 
 export type PostApiV1LoginData = {
@@ -6913,7 +9685,7 @@ export type PutApiV1TicketsTicketIdData = {
   /**
    * updated ticket object to be saved
    */
-  body: TicketCompleteWritable;
+  body: TicketCompleteWritable & TicketTagAssignments;
   path: {
     /**
      * Id of the ticket to update.
@@ -6991,7 +9763,7 @@ export type PostApiV1TicketsTicketIdCommentsData = {
   /**
    * comment to be created
    */
-  body: TnsComment;
+  body: TnsCommentWritable;
   path: {
     /**
      * Id of the ticket the comment is created on.
@@ -7183,11 +9955,11 @@ export type PostApiV1TicketsTicketIdUploadData = {
     /**
      * REQUIRED! binary data of the uploaded file(s)
      */
-    files: Blob | File;
+    files: Array<Blob | File>;
     /**
-     * REQUIRED! description of the uploaded file(s)
+     * optional description per uploaded file, in the same order as `files`
      */
-    descriptions: Blob | File;
+    descriptions?: Array<string>;
     /**
      * optional flag to mark the uploaded file(s) as internal
      */
@@ -7230,7 +10002,7 @@ export type PostApiCallsV1Data = {
   /**
    * call object to be saved
    */
-  body: TnsPhoneCall;
+  body: TnsPhoneCallWritable;
   path?: never;
   query?: never;
   url: '/api/calls/v1';
@@ -7331,7 +10103,7 @@ export type PutApiCallsV1IdData = {
   /**
    * Updated phone call object
    */
-  body: TnsPhoneCall;
+  body: TnsPhoneCallWritable;
   path: {
     /**
      * Id of the phone call to be updated
@@ -7357,7 +10129,7 @@ export type PutApiCallsV1IdResponses = {
   /**
    * Updated phone call object
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsPhoneCall;
   };
@@ -7491,7 +10263,7 @@ export type PostApiCallsV1NotificationData = {
   /**
    * call object for this notification
    */
-  body: TnsPhoneCall;
+  body: TnsPhoneCallWritable;
   path?: never;
   query?: never;
   url: '/api/calls/v1/notification';
@@ -7625,7 +10397,7 @@ export type PostApiRemoteSupportsV1Data = {
   /**
    * remote object to be saved
    */
-  body: TnsRemoteMaintenance;
+  body: TnsRemoteMaintenanceWritable;
   path?: never;
   query?: never;
   url: '/api/remoteSupports/v1';
@@ -7754,7 +10526,7 @@ export type PutApiRemoteSupportsV1RemoteSupportIdData = {
   /**
    * new values for the remote support object
    */
-  body: TnsRemoteMaintenance;
+  body: TnsRemoteMaintenanceWritable;
   path: {
     /**
      * Id of the remote support to be updated
@@ -7780,7 +10552,7 @@ export type PutApiRemoteSupportsV1RemoteSupportIdResponses = {
   /**
    * updated remote support object
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsRemoteMaintenance;
   };
@@ -8202,9 +10974,20 @@ export type GetApiErpV1InvoicesData = {
   path?: never;
   query?: {
     /**
-     * Customer number whose invoices are returned.
+     * Comma-separated list of company type ids. If set, only vouchers of customers that carry at
+     * least one of these company types are returned. Without it, the vouchers of all customers are
+     * returned. Entries that are not a positive number are ignored; if no customer matches the
+     * given types, the result is empty.
+     *
      */
-    customer?: string;
+    companyTypes?: string;
+    /**
+     * If true, the rendered voucher PDF is additionally returned Base64-encoded in the `pdf` field
+     * of every entry whose order request file could be read. Off by default, because rendering the
+     * PDFs is expensive.
+     *
+     */
+    pdf?: boolean;
   };
   url: '/api/erp/v1/invoices';
 };
@@ -8222,23 +11005,60 @@ export type GetApiErpV1InvoicesError = GetApiErpV1InvoicesErrors[keyof GetApiErp
 
 export type GetApiErpV1InvoicesResponses = {
   /**
-   * Resource(s) returned.
+   * Resource(s) returned — bare list, no `meta`/`content` envelope.
    */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * Response payload.
-     */
-    content?: unknown;
-  };
+  200: Array<Invoice>;
 };
 
 export type GetApiErpV1InvoicesResponse = GetApiErpV1InvoicesResponses[keyof GetApiErpV1InvoicesResponses];
 
+export type PostApiErpV1InvoicesData = {
+  /**
+   * Vouchers to be settled, each with the invoice number assigned by the ERP system.
+   */
+  body: Array<InvoicePost>;
+  path?: never;
+  query?: never;
+  url: '/api/erp/v1/invoices';
+};
+
+export type PostApiErpV1InvoicesErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+};
+
+export type PostApiErpV1InvoicesError = PostApiErpV1InvoicesErrors[keyof PostApiErpV1InvoicesErrors];
+
+export type PostApiErpV1InvoicesResponses = {
+  /**
+   * Batch processed — bare list, no `meta`/`content` envelope; see the per-entry `status`.
+   */
+  200: Array<InvoicePostResponse>;
+};
+
+export type PostApiErpV1InvoicesResponse = PostApiErpV1InvoicesResponses[keyof PostApiErpV1InvoicesResponses];
+
 export type GetApiErpV1CustomersData = {
   body?: never;
   path?: never;
-  query?: never;
+  query?: {
+    /**
+     * Unix timestamp; only companies and employees whose last change is at or after this value are
+     * returned. `0` returns empty lists, `-1` returns all records.
+     *
+     */
+    modified?: number;
+    /**
+     * If true, every employee additionally carries its `preferred_customer` block. Sending
+     * `false` omits that block and saves one query per employee.
+     *
+     */
+    preferredCustomers?: boolean;
+  };
   url: '/api/erp/v1/customers';
 };
 
@@ -8255,24 +11075,18 @@ export type GetApiErpV1CustomersError = GetApiErpV1CustomersErrors[keyof GetApiE
 
 export type GetApiErpV1CustomersResponses = {
   /**
-   * Successful response.
+   * Successful response — bare object, no `meta`/`content` envelope.
    */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * Response payload.
-     */
-    content?: unknown;
-  };
+  200: CustomersCombine;
 };
 
 export type GetApiErpV1CustomersResponse = GetApiErpV1CustomersResponses[keyof GetApiErpV1CustomersResponses];
 
 export type PostApiErpV1CustomersData = {
   /**
-   * Raw string body (no JSON wrapping).
+   * Customer/supplier records to import, each as Base64-encoded ERP XML.
    */
-  body: string;
+  body: Array<CustomerPost>;
   path?: never;
   query?: never;
   url: '/api/erp/v1/customers';
@@ -8291,21 +11105,20 @@ export type PostApiErpV1CustomersError = PostApiErpV1CustomersErrors[keyof PostA
 
 export type PostApiErpV1CustomersResponses = {
   /**
-   * Resource created.
+   * Batch processed — bare list, no `meta`/`content` envelope; see the per-entry `status`.
    */
-  201: {
-    meta?: TnsMetaMessage;
-    /**
-     * Response payload.
-     */
-    content?: unknown;
-  };
+  200: Array<CustomerPostResponse>;
 };
 
 export type PostApiErpV1CustomersResponse = PostApiErpV1CustomersResponses[keyof PostApiErpV1CustomersResponses];
 
 export type PostApiErpV1TicketsData = {
-  body: TicketSaveWritable;
+  body: TicketSaveWritable & {
+    /**
+     * Cannot be set through this route - the value is ignored. Use `POST /api/v1/tickets` or `PUT /api/v1/tickets/{ticketId}` with a user token instead (see the description above).
+     */
+    readonly serviceCapAmount?: unknown;
+  };
   path?: never;
   query?: never;
   url: '/api/erp/v1/tickets';
@@ -8408,11 +11221,11 @@ export type PostApiErpV1TicketsTicketIdUploadData = {
     /**
      * REQUIRED! binary data of the uploaded file(s)
      */
-    files: Blob | File;
+    files: Array<Blob | File>;
     /**
-     * REQUIRED! description of the uploaded file(s)
+     * optional description per uploaded file, in the same order as `files`
      */
-    descriptions: Blob | File;
+    descriptions?: Array<string>;
     /**
      * optional flag to mark the uploaded file(s) as internal
      */
@@ -8450,6 +11263,49 @@ export type PostApiErpV1TicketsTicketIdUploadResponses = {
 };
 
 export type PostApiErpV1TicketsTicketIdUploadResponse = PostApiErpV1TicketsTicketIdUploadResponses[keyof PostApiErpV1TicketsTicketIdUploadResponses];
+
+export type PostApiErpV1TicketsTicketIdCommentsData = {
+  /**
+   * comment to be created
+   */
+  body: TnsCommentWritable;
+  path: {
+    /**
+     * Id of the ticket the comment is created on.
+     */
+    ticketId: number;
+  };
+  query?: {
+    /**
+     * comment can optionally be "pinned" to the ticket
+     */
+    pinned?: boolean;
+  };
+  url: '/api/erp/v1/tickets/{ticketId}/comments';
+};
+
+export type PostApiErpV1TicketsTicketIdCommentsErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+};
+
+export type PostApiErpV1TicketsTicketIdCommentsError = PostApiErpV1TicketsTicketIdCommentsErrors[keyof PostApiErpV1TicketsTicketIdCommentsErrors];
+
+export type PostApiErpV1TicketsTicketIdCommentsResponses = {
+  /**
+   * comment was successfully created
+   */
+  201: {
+    meta?: TnsMetaMessage;
+    content?: TnsComment;
+  };
+};
+
+export type PostApiErpV1TicketsTicketIdCommentsResponse = PostApiErpV1TicketsTicketIdCommentsResponses[keyof PostApiErpV1TicketsTicketIdCommentsResponses];
 
 export type GetApiErpV1CompaniesEmployeesData = {
   body?: never;
@@ -8889,7 +11745,7 @@ export type PutApiV1TimestampsTimestampIdResponses = {
   /**
    * timestamp was successfully updated
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: Timestamp;
   };
@@ -9227,7 +12083,7 @@ export type PostApiV1TimestampsPauseConfigsData = {
   /**
    * pause config object to be saved
    */
-  body: TimestampPauseConfig;
+  body: TimestampPauseConfigWritable;
   path?: never;
   query?: never;
   url: '/api/v1/timestamps/pauseConfigs';
@@ -9292,7 +12148,7 @@ export type PutApiV1TimestampsPauseConfigsIdData = {
   /**
    * pause config object to be saved
    */
-  body: TimestampPauseConfig;
+  body: TimestampPauseConfigWritable;
   path: {
     /**
      * id of the pause config
@@ -9330,7 +12186,7 @@ export type PostApiV1ChatsData = {
   /**
    * chat object to be saved
    */
-  body: TnsChatDetail;
+  body: TnsChatDetailWritable;
   path?: never;
   query?: never;
   url: '/api/v1/chats';
@@ -9685,7 +12541,7 @@ export type PostApiV1OffersErpSelectionsData = {
   /**
    * erp selection to be saved (including materials)
    */
-  body: TnsOfferErpSelection;
+  body: TnsOfferErpSelectionWritable;
   path?: never;
   query?: never;
   url: '/api/v1/offers/erpSelections';
@@ -9785,7 +12641,7 @@ export type PutApiV1OffersErpSelectionsErpSelectionIdData = {
   /**
    * erp selection to be saved (including materials)
    */
-  body: TnsOfferErpSelection;
+  body: TnsOfferErpSelectionWritable;
   path: {
     /**
      * Id of the erp selection to be updated
@@ -9853,7 +12709,7 @@ export type PostApiV1OffersTemplatesData = {
   /**
    * offer templates
    */
-  body: TnsOfferTemplate;
+  body: TnsOfferTemplateWritable;
   path?: never;
   query?: never;
   url: '/api/v1/offers/templates';
@@ -9953,7 +12809,7 @@ export type PutApiV1OffersTemplatesTemplateIdData = {
   /**
    * offer template
    */
-  body: TnsOfferTemplate;
+  body: TnsOfferTemplateWritable;
   path: {
     /**
      * Id of the offer template
@@ -10065,7 +12921,7 @@ export type PostApiV1OffersData = {
   /**
    * offer object
    */
-  body: TnsOfferDetails;
+  body: TnsOfferDetailsWritable;
   path?: never;
   query?: never;
   url: '/api/v1/offers';
@@ -10126,111 +12982,6 @@ export type PutApiV1OffersResponses = {
 };
 
 export type PutApiV1OffersResponse = PutApiV1OffersResponses[keyof PutApiV1OffersResponses];
-
-export type DeleteApiV1OfferOfferIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the offer to be deleted
-     */
-    offerId: number;
-  };
-  query?: never;
-  url: '/api/v1/offer/{offerId}';
-};
-
-export type DeleteApiV1OfferOfferIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type DeleteApiV1OfferOfferIdError = DeleteApiV1OfferOfferIdErrors[keyof DeleteApiV1OfferOfferIdErrors];
-
-export type DeleteApiV1OfferOfferIdResponses = {
-  /**
-   * Deleted offer
-   */
-  204: void;
-};
-
-export type DeleteApiV1OfferOfferIdResponse = DeleteApiV1OfferOfferIdResponses[keyof DeleteApiV1OfferOfferIdResponses];
-
-export type GetApiV1OfferOfferIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the offer
-     */
-    offerId: number;
-  };
-  query?: never;
-  url: '/api/v1/offer/{offerId}';
-};
-
-export type GetApiV1OfferOfferIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1OfferOfferIdError = GetApiV1OfferOfferIdErrors[keyof GetApiV1OfferOfferIdErrors];
-
-export type GetApiV1OfferOfferIdResponses = {
-  /**
-   * offer details
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    content?: Array<TnsOfferDetails>;
-  };
-};
-
-export type GetApiV1OfferOfferIdResponse = GetApiV1OfferOfferIdResponses[keyof GetApiV1OfferOfferIdResponses];
-
-export type PutApiV1OfferOfferIdData = {
-  /**
-   * offer object
-   */
-  body: TnsOfferDetails;
-  path: {
-    /**
-     * Id of the offer
-     */
-    offerId: number;
-  };
-  query?: never;
-  url: '/api/v1/offer/{offerId}';
-};
-
-export type PutApiV1OfferOfferIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type PutApiV1OfferOfferIdError = PutApiV1OfferOfferIdErrors[keyof PutApiV1OfferOfferIdErrors];
-
-export type PutApiV1OfferOfferIdResponses = {
-  /**
-   * updatet offer
-   */
-  202: {
-    meta?: TnsMetaMessage;
-    content?: Array<TnsOfferDetails>;
-  };
-};
-
-export type PutApiV1OfferOfferIdResponse = PutApiV1OfferOfferIdResponses[keyof PutApiV1OfferOfferIdResponses];
 
 export type GetApiV1AvailabilityData = {
   body?: never;
@@ -10380,7 +13131,7 @@ export type PostApiV1TagsData = {
   /**
    * tag object
    */
-  body: TnsTagWithoutGroupTag;
+  body: TnsTagWithoutGroupTagWritable;
   path?: never;
   query?: never;
   url: '/api/v1/tags';
@@ -10476,7 +13227,7 @@ export type PutApiV1TagsIdData = {
   /**
    * tag object
    */
-  body: TnsTag;
+  body: TnsTagWritable;
   path: {
     /**
      * id of the tag
@@ -10730,7 +13481,7 @@ export type PutApiV1TagsAssignmentResponses = {
   /**
    * tags were successfully assigned or remove. Returns a list with the new tags
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: Array<TnsTag>;
   };
@@ -10817,7 +13568,7 @@ export type PostApiV1CallbacksData = {
   /**
    * callback object to be saved
    */
-  body: TnsCallback;
+  body: TnsCallbackWritable;
   path?: never;
   query?: never;
   url: '/api/v1/callbacks';
@@ -10918,7 +13669,7 @@ export type PutApiV1CallbacksCallbackIdData = {
   /**
    * callback object to be updated
    */
-  body: TnsCallback;
+  body: TnsCallbackWritable;
   path: {
     /**
      * Id of the callback to be updated
@@ -10944,7 +13695,7 @@ export type PutApiV1CallbacksCallbackIdResponses = {
   /**
    * callbacks was successfully updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsCallbackWithLog;
   };
@@ -11327,6 +14078,38 @@ export type PostApiV1SupportsResponses = {
 
 export type PostApiV1SupportsResponse = PostApiV1SupportsResponses[keyof PostApiV1SupportsResponses];
 
+export type DeleteApiV1SupportsSupportIdData = {
+  body?: never;
+  path: {
+    /**
+     * id of the support that shall be deleted
+     */
+    supportId: number;
+  };
+  query?: never;
+  url: '/api/v1/supports/{supportId}';
+};
+
+export type DeleteApiV1SupportsSupportIdErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+};
+
+export type DeleteApiV1SupportsSupportIdError = DeleteApiV1SupportsSupportIdErrors[keyof DeleteApiV1SupportsSupportIdErrors];
+
+export type DeleteApiV1SupportsSupportIdResponses = {
+  /**
+   * Support/appointment deleted (no content).
+   */
+  204: void;
+};
+
+export type DeleteApiV1SupportsSupportIdResponse = DeleteApiV1SupportsSupportIdResponses[keyof DeleteApiV1SupportsSupportIdResponses];
+
 export type GetApiV1SupportsSupportIdData = {
   body?: never;
   path: {
@@ -11366,7 +14149,7 @@ export type PutApiV1SupportsSupportIdData = {
   /**
    * support object to be saved. The best way is only to give the fields that have changed.
    */
-  body: TnsSupport;
+  body: TnsSupportWritable;
   path: {
     /**
      * id of the support that shall be updated
@@ -11392,7 +14175,7 @@ export type PutApiV1SupportsSupportIdResponses = {
   /**
    * the updated support/appointment
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsSupport;
   };
@@ -11479,7 +14262,7 @@ export type PostApiV1SupportTypesData = {
   /**
    * support type object to be saved.
    */
-  body: TnsSupportType;
+  body: TnsSupportTypeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/supportTypes';
@@ -11579,7 +14362,7 @@ export type PutApiV1SupportTypesIdData = {
   /**
    * support type object to be updated.
    */
-  body: TnsSupportType;
+  body: TnsSupportTypeWritable;
   path: {
     /**
      * id of the support type that shall be updated
@@ -11712,7 +14495,7 @@ export type PostApiV1TicketBoardPanelData = {
   /**
    * Ticket board panel
    */
-  body: TnsTicketBoardPanel;
+  body: TnsTicketBoardPanelWritable;
   path?: never;
   query?: never;
   url: '/api/v1/ticketBoard/panel';
@@ -11740,39 +14523,6 @@ export type PostApiV1TicketBoardPanelResponses = {
 };
 
 export type PostApiV1TicketBoardPanelResponse = PostApiV1TicketBoardPanelResponses[keyof PostApiV1TicketBoardPanelResponses];
-
-export type PutApiV1TicketBoardPanelData = {
-  /**
-   * Ticket board panel
-   */
-  body: TnsTicketBoardPanel;
-  path?: never;
-  query?: never;
-  url: '/api/v1/ticketBoard/panel';
-};
-
-export type PutApiV1TicketBoardPanelErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type PutApiV1TicketBoardPanelError = PutApiV1TicketBoardPanelErrors[keyof PutApiV1TicketBoardPanelErrors];
-
-export type PutApiV1TicketBoardPanelResponses = {
-  /**
-   * ticket board updated
-   */
-  202: {
-    meta?: TnsMetaMessage;
-    content?: TnsTicketBoardPanel;
-  };
-};
-
-export type PutApiV1TicketBoardPanelResponse = PutApiV1TicketBoardPanelResponses[keyof PutApiV1TicketBoardPanelResponses];
 
 export type DeleteApiV1TicketBoardPanelIdData = {
   body?: never;
@@ -11840,6 +14590,44 @@ export type GetApiV1TicketBoardPanelIdResponses = {
 };
 
 export type GetApiV1TicketBoardPanelIdResponse = GetApiV1TicketBoardPanelIdResponses[keyof GetApiV1TicketBoardPanelIdResponses];
+
+export type PutApiV1TicketBoardPanelIdData = {
+  /**
+   * Ticket board panel
+   */
+  body: TnsTicketBoardPanelWritable;
+  path: {
+    /**
+     * Panel id
+     */
+    id: number;
+  };
+  query?: never;
+  url: '/api/v1/ticketBoard/panel/{id}';
+};
+
+export type PutApiV1TicketBoardPanelIdErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+};
+
+export type PutApiV1TicketBoardPanelIdError = PutApiV1TicketBoardPanelIdErrors[keyof PutApiV1TicketBoardPanelIdErrors];
+
+export type PutApiV1TicketBoardPanelIdResponses = {
+  /**
+   * ticket board updated
+   */
+  202: {
+    meta?: TnsMetaMessage;
+    content?: TnsTicketBoardPanel;
+  };
+};
+
+export type PutApiV1TicketBoardPanelIdResponse = PutApiV1TicketBoardPanelIdResponses[keyof PutApiV1TicketBoardPanelIdResponses];
 
 export type GetApiV1TicketBoardPanelIdRegistersData = {
   body?: never;
@@ -11945,36 +14733,6 @@ export type GetApiV1TicketBoardProjectIdRegistersResponses = {
 };
 
 export type GetApiV1TicketBoardProjectIdRegistersResponse = GetApiV1TicketBoardProjectIdRegistersResponses[keyof GetApiV1TicketBoardProjectIdRegistersResponses];
-
-export type GetApiV1TicketBoardProjectGlobalPanelsData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: '/api/v1/ticketBoard/project/globalPanels';
-};
-
-export type GetApiV1TicketBoardProjectGlobalPanelsErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1TicketBoardProjectGlobalPanelsError = GetApiV1TicketBoardProjectGlobalPanelsErrors[keyof GetApiV1TicketBoardProjectGlobalPanelsErrors];
-
-export type GetApiV1TicketBoardProjectGlobalPanelsResponses = {
-  /**
-   * list of global panels
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    content?: Array<TnsTicketBoardPanel>;
-  };
-};
-
-export type GetApiV1TicketBoardProjectGlobalPanelsResponse = GetApiV1TicketBoardProjectGlobalPanelsResponses[keyof GetApiV1TicketBoardProjectGlobalPanelsResponses];
 
 export type DeleteApiV1TimersData = {
   /**
@@ -12128,7 +14886,7 @@ export type PutApiV1TimersTimerIdResponses = {
   /**
    * single timer object of the given timer that was started or stopped
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: Timer;
   };
@@ -12305,7 +15063,7 @@ export type PutApiV1PcsPcIdData = {
   /**
    * pc object to be saved
    */
-  body: TnsPersonalComputerWithIpGuarantee;
+  body: TnsPersonalComputerWithIpGuaranteeWritable;
   path: {
     /**
      * ID of the pc or server to update.
@@ -12331,7 +15089,7 @@ export type PutApiV1PcsPcIdResponses = {
   /**
    * pc/server was successfully updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsPersonalComputerWithDetails;
   };
@@ -12343,7 +15101,7 @@ export type PostApiV1PcsData = {
   /**
    * pc object to be saved
    */
-  body: TnsPersonalComputerWithIpGuarantee;
+  body: TnsPersonalComputerWithIpGuaranteeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/pcs';
@@ -12462,7 +15220,7 @@ export type GetApiV1PeripheriesPeripheryIdError = GetApiV1PeripheriesPeripheryId
 
 export type GetApiV1PeripheriesPeripheryIdResponses = {
   /**
-   * pceriphery was successfully retrieved
+   * periphery was successfully retrieved
    */
   200: {
     meta?: TnsMetaMessage;
@@ -12476,7 +15234,7 @@ export type PutApiV1PeripheriesPeripheryIdData = {
   /**
    * periphery object to be saved
    */
-  body: TnsPeripheryWithIpGuarantee;
+  body: TnsPeripheryWithIpGuaranteeWritable;
   path: {
     /**
      * ID of the periphery to update.
@@ -12500,9 +15258,9 @@ export type PutApiV1PeripheriesPeripheryIdError = PutApiV1PeripheriesPeripheryId
 
 export type PutApiV1PeripheriesPeripheryIdResponses = {
   /**
-   * pc/server was successfully updated
+   * periphery was successfully updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsPeripheryWithIpGuarantee;
   };
@@ -12514,7 +15272,7 @@ export type PostApiV1PeripheriesData = {
   /**
    * periphery object to be saved
    */
-  body: TnsPeripheryWithIpGuarantee;
+  body: TnsPeripheryWithIpGuaranteeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/peripheries';
@@ -12610,7 +15368,7 @@ export type PostApiV1PeripheriesTypesData = {
   /**
    * periphery type to be saved
    */
-  body: TnsPeripheryType;
+  body: TnsPeripheryTypeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/peripheries/types';
@@ -12675,7 +15433,7 @@ export type PutApiV1PeripheriesTypesTypeIdData = {
   /**
    * periphery type to be updated
    */
-  body: TnsPeripheryType;
+  body: TnsPeripheryTypeWritable;
   path: {
     /**
      * type id to be updated
@@ -12701,7 +15459,7 @@ export type PutApiV1PeripheriesTypesTypeIdResponses = {
   /**
    * periphery type updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsPeripheryType;
   };
@@ -12782,7 +15540,7 @@ export type PostApiV1PeripheriesPeripheryIdBuildInLinkTypeIdLinkIdError = PostAp
 
 export type PostApiV1PeripheriesPeripheryIdBuildInLinkTypeIdLinkIdResponses = {
   /**
-   * pceriphery was successfully assigned
+   * periphery was successfully assigned
    */
   201: {
     meta?: TnsMetaMessage;
@@ -12862,7 +15620,7 @@ export type PutApiV1ComponentsComponentIdData = {
   /**
    * component object to be saved
    */
-  body: TnsComponent;
+  body: TnsComponentWritable;
   path: {
     /**
      * ID of the component to update.
@@ -12888,7 +15646,7 @@ export type PutApiV1ComponentsComponentIdResponses = {
   /**
    * component was successfully updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsComponent;
   };
@@ -12900,7 +15658,7 @@ export type PostApiV1ComponentsData = {
   /**
    * component object to be saved
    */
-  body: TnsComponent;
+  body: TnsComponentWritable;
   path?: never;
   query?: never;
   url: '/api/v1/components';
@@ -12996,7 +15754,7 @@ export type PostApiV1ComponentsTypesData = {
   /**
    * component type to be saved
    */
-  body: TnsComponentType;
+  body: TnsComponentTypeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/components/types';
@@ -13061,7 +15819,7 @@ export type PutApiV1ComponentsTypesTypeIdData = {
   /**
    * component type to be saved
    */
-  body: TnsComponentType;
+  body: TnsComponentTypeWritable;
   path: {
     /**
      * type id to be updated
@@ -13087,7 +15845,7 @@ export type PutApiV1ComponentsTypesTypeIdResponses = {
   /**
    * component type updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsComponentType;
   };
@@ -13099,7 +15857,7 @@ export type PostApiV1CompaniesData = {
   /**
    * company object to be saved
    */
-  body: CompanyPost;
+  body: CompanyPostWritable;
   path?: never;
   query?: never;
   url: '/api/v1/companies';
@@ -13167,7 +15925,7 @@ export type PostApiV1TanssEventsRulesData = {
   /**
    * tanss event rule object
    */
-  body: TnsTanssEventRule;
+  body: TnsTanssEventRuleWritable;
   path?: never;
   query?: never;
   url: '/api/v1/tanssEvents/rules';
@@ -13300,7 +16058,7 @@ export type PutApiV1TanssEventsRulesIdData = {
   /**
    * tanss event rule object
    */
-  body: TnsTanssEventRule;
+  body: TnsTanssEventRuleWritable;
   path: {
     /**
      * id of the rule
@@ -13326,7 +16084,7 @@ export type PutApiV1TanssEventsRulesIdResponses = {
   /**
    * rule was successfully updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsTanssEventRule;
   };
@@ -13401,7 +16159,7 @@ export type PostApiV1ServicesData = {
   /**
    * service object to be saved
    */
-  body: TnsService;
+  body: TnsServiceWritable;
   path?: never;
   query?: never;
   url: '/api/v1/services';
@@ -13501,7 +16259,7 @@ export type PutApiV1ServicesIdData = {
   /**
    * service object to be saved
    */
-  body: TnsService;
+  body: TnsServiceWritable;
   path: {
     /**
      * ID of the service to update.
@@ -13527,7 +16285,7 @@ export type PutApiV1ServicesIdResponses = {
   /**
    * service was successfully updated
    */
-  201: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsService;
   };
@@ -13569,7 +16327,7 @@ export type PostApiV1OsData = {
   /**
    * operating system to be saved
    */
-  body: TnsPersonalComputerOperatingSystem;
+  body: TnsPersonalComputerOperatingSystemWritable;
   path?: never;
   query?: never;
   url: '/api/v1/os';
@@ -13669,7 +16427,7 @@ export type PutApiV1OsIdData = {
   /**
    * operating system to be updated
    */
-  body: TnsPersonalComputerOperatingSystem;
+  body: TnsPersonalComputerOperatingSystemWritable;
   path: {
     /**
      * Id of the operating system
@@ -13737,7 +16495,7 @@ export type PostApiV1ManufacturersData = {
   /**
    * manufacturer to be saved
    */
-  body: TnsManufacturer;
+  body: TnsManufacturerWritable;
   path?: never;
   query?: never;
   url: '/api/v1/manufacturers';
@@ -13837,7 +16595,7 @@ export type PutApiV1ManufacturersIdData = {
   /**
    * manufacturer to be updated
    */
-  body: TnsManufacturer;
+  body: TnsManufacturerWritable;
   path: {
     /**
      * Id of the manufacturer
@@ -13905,7 +16663,7 @@ export type PostApiV1CpusData = {
   /**
    * cpu to be saved
    */
-  body: TnsPersonalComputerCpu;
+  body: TnsPersonalComputerCpuWritable;
   path?: never;
   query?: never;
   url: '/api/v1/cpus';
@@ -14005,7 +16763,7 @@ export type PutApiV1CpusIdData = {
   /**
    * cpu to be updated
    */
-  body: TnsPersonalComputerCpu;
+  body: TnsPersonalComputerCpuWritable;
   path: {
     /**
      * Id of the cpu
@@ -14073,7 +16831,7 @@ export type PostApiV1HddTypesData = {
   /**
    * hdd type to be saved
    */
-  body: TnsPersonalComputerHddType;
+  body: TnsPersonalComputerHddTypeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/hddTypes';
@@ -14173,7 +16931,7 @@ export type PutApiV1HddTypesIdData = {
   /**
    * hdd type to be updated
    */
-  body: TnsPersonalComputerHddType;
+  body: TnsPersonalComputerHddTypeWritable;
   path: {
     /**
      * Id of the hdd type
@@ -14241,7 +16999,7 @@ export type PostApiV1CompanyCategoriesData = {
   /**
    * company category object to be saved
    */
-  body: TnsCompanyCategory;
+  body: TnsCompanyCategoryWritable;
   path?: never;
   query?: never;
   url: '/api/v1/companyCategories';
@@ -14341,7 +17099,7 @@ export type PutApiV1CompanyCategoriesIdData = {
   /**
    * company category object to be updated
    */
-  body: TnsCompanyCategory;
+  body: TnsCompanyCategoryWritable;
   path: {
     /**
      * Id of the company category
@@ -14409,7 +17167,7 @@ export type PostApiV1CompanyCategoriesTypesData = {
   /**
    * company ztype object to be saved
    */
-  body: TnsCompanyType;
+  body: TnsCompanyTypeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/companyCategories/types';
@@ -14509,7 +17267,7 @@ export type PutApiV1CompanyCategoriesTypesIdData = {
   /**
    * company type object to be updated
    */
-  body: TnsCompanyType;
+  body: TnsCompanyTypeWritable;
   path: {
     /**
      * Id of the company type
@@ -14716,7 +17474,7 @@ export type PutApiV1IpsIdResponses = {
   /**
    * updated ip address
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsIpMac;
   };
@@ -14728,7 +17486,7 @@ export type PostApiV1EmailAccountsData = {
   /**
    * account object to be saved
    */
-  body: TnsEmailAccount;
+  body: TnsEmailAccountWritable;
   path?: never;
   query?: never;
   url: '/api/v1/emailAccounts';
@@ -14866,7 +17624,7 @@ export type PutApiV1EmailAccountsIdData = {
   /**
    * account object to be saved
    */
-  body: TnsEmailAccount;
+  body: TnsEmailAccountWritable;
   path: {
     /**
      * Id of the E-mail account
@@ -14997,7 +17755,7 @@ export type PostApiV1VacationRequestsData = {
   /**
    * vacation request to be stored
    */
-  body: TnsVacationRequest;
+  body: TnsVacationRequestWritable;
   path?: never;
   query?: never;
   url: '/api/v1/vacationRequests';
@@ -15062,7 +17820,7 @@ export type PutApiV1VacationRequestsIdData = {
   /**
    * vacation request to be updated
    */
-  body: TnsVacationRequest;
+  body: TnsVacationRequestWritable;
   path: {
     /**
      * Id of the vacation request
@@ -15088,7 +17846,7 @@ export type PutApiV1VacationRequestsIdResponses = {
   /**
    * the updated vacation request
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: TnsVacationRequest;
   };
@@ -15131,17 +17889,17 @@ export type GetApiV1VacationRequestsVacationDaysYearYearResponses = {
 
 export type GetApiV1VacationRequestsVacationDaysYearYearResponse = GetApiV1VacationRequestsVacationDaysYearYearResponses[keyof GetApiV1VacationRequestsVacationDaysYearYearResponses];
 
-export type PostApiV1VacationRequestsVacationDaysData = {
+export type PutApiV1VacationRequestsVacationDaysData = {
   /**
    * infos on employee and vacation days per year
    */
-  body: TnsEmployeeVacationDays;
+  body: TnsEmployeeVacationDaysWritable;
   path?: never;
   query?: never;
   url: '/api/v1/vacationRequests/vacationDays';
 };
 
-export type PostApiV1VacationRequestsVacationDaysErrors = {
+export type PutApiV1VacationRequestsVacationDaysErrors = {
   /**
    * error response
    */
@@ -15150,9 +17908,9 @@ export type PostApiV1VacationRequestsVacationDaysErrors = {
   };
 };
 
-export type PostApiV1VacationRequestsVacationDaysError = PostApiV1VacationRequestsVacationDaysErrors[keyof PostApiV1VacationRequestsVacationDaysErrors];
+export type PutApiV1VacationRequestsVacationDaysError = PutApiV1VacationRequestsVacationDaysErrors[keyof PutApiV1VacationRequestsVacationDaysErrors];
 
-export type PostApiV1VacationRequestsVacationDaysResponses = {
+export type PutApiV1VacationRequestsVacationDaysResponses = {
   /**
    * updated infos for the employee
    */
@@ -15162,7 +17920,7 @@ export type PostApiV1VacationRequestsVacationDaysResponses = {
   };
 };
 
-export type PostApiV1VacationRequestsVacationDaysResponse = PostApiV1VacationRequestsVacationDaysResponses[keyof PostApiV1VacationRequestsVacationDaysResponses];
+export type PutApiV1VacationRequestsVacationDaysResponse = PutApiV1VacationRequestsVacationDaysResponses[keyof PutApiV1VacationRequestsVacationDaysResponses];
 
 export type PutApiV1TanssEventsData = {
   /**
@@ -15400,7 +18158,7 @@ export type PostApiV1DocumentsData = {
   /**
    * document with content
    */
-  body: TnsDocumentWithContent;
+  body: TnsDocumentWithContentWritable;
   path?: never;
   query?: never;
   url: '/api/v1/documents';
@@ -15608,7 +18366,7 @@ export type PostApiV1DomainsData = {
   /**
    * domain object to be saved
    */
-  body: TnsDomainFull;
+  body: TnsDomainFullWritable;
   path?: never;
   query?: never;
   url: '/api/v1/domains';
@@ -15708,7 +18466,7 @@ export type PutApiV1DomainsIdData = {
   /**
    * domain object to be updated
    */
-  body: TnsDomainFull;
+  body: TnsDomainFullWritable;
   path: {
     /**
      * id of the domain that shall be updated
@@ -15781,7 +18539,7 @@ export type PostApiV1SoftwarelicensesData = {
   /**
    * software license object to create
    */
-  body: TnsSoftwarelicense;
+  body: TnsSoftwarelicenseWritable;
   path?: never;
   query?: never;
   url: '/api/v1/softwarelicenses';
@@ -15914,7 +18672,7 @@ export type PutApiV1SoftwarelicensesIdData = {
   /**
    * software license object to update
    */
-  body: TnsSoftwarelicense;
+  body: TnsSoftwarelicenseWritable;
   path: {
     /**
      * id of the software license to get
@@ -15982,7 +18740,7 @@ export type PostApiV1SoftwarelicensesTypesData = {
   /**
    * software license type object to create
    */
-  body: TnsSoftwarelicenseType;
+  body: TnsSoftwarelicenseTypeWritable;
   path?: never;
   query?: never;
   url: '/api/v1/softwarelicenses/types';
@@ -16082,7 +18840,7 @@ export type PutApiV1SoftwarelicensesTypesIdData = {
   /**
    * software license type object to update
    */
-  body: TnsSoftwarelicenseType;
+  body: TnsSoftwarelicenseTypeWritable;
   path: {
     /**
      * id of the software license type to update
@@ -16117,7 +18875,21 @@ export type PutApiV1SoftwarelicensesTypesIdResponses = {
 export type PutApiV1SoftwarelicensesTypesIdResponse = PutApiV1SoftwarelicensesTypesIdResponses[keyof PutApiV1SoftwarelicensesTypesIdResponses];
 
 export type PostApiCallsV1NotificationCloseData = {
-  body?: never;
+  /**
+   * Participant whose notification is to be closed.
+   */
+  body: {
+    /**
+     * Id of the phone call the notification belongs to.
+     */
+    phoneCallId?: number;
+    idString?: string;
+    /**
+     * Employee whose notification is closed.
+     */
+    employeeId?: number;
+    mail?: string;
+  };
   path?: never;
   query?: never;
   url: '/api/calls/v1/notification/close';
@@ -16140,6 +18912,12 @@ export type PostApiCallsV1NotificationCloseResponses = {
    */
   201: {
     meta?: TnsMetaMessage;
+    /**
+     * The participant from the request, enriched with the push result.
+     */
+    content?: {
+      [key: string]: unknown;
+    };
   };
 };
 
@@ -16186,7 +18964,7 @@ export type PostApiDeviceManagementV1PeripheriesFieldsData = {
     /**
      * Unique identifier of the additional field
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the periphery device type this field belongs to
      */
@@ -16309,7 +19087,7 @@ export type PutApiDeviceManagementV1PeripheriesFieldsIdData = {
     /**
      * Unique identifier of the additional field
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the periphery device type this field belongs to
      */
@@ -16348,7 +19126,7 @@ export type PutApiDeviceManagementV1PeripheriesFieldsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The periphery-type additional-field definition.
@@ -16358,6 +19136,91 @@ export type PutApiDeviceManagementV1PeripheriesFieldsIdResponses = {
 };
 
 export type PutApiDeviceManagementV1PeripheriesFieldsIdResponse = PutApiDeviceManagementV1PeripheriesFieldsIdResponses[keyof PutApiDeviceManagementV1PeripheriesFieldsIdResponses];
+
+export type PostApiDeviceManagementV1DocumentsData = {
+  /**
+   * document with content
+   */
+  body: TnsDocumentWithContentWritable;
+  path?: never;
+  query?: never;
+  url: '/api/deviceManagement/v1/documents';
+};
+
+export type PostApiDeviceManagementV1DocumentsErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+  /**
+   * error response
+   */
+  404: {
+    error?: TnsException;
+  };
+};
+
+export type PostApiDeviceManagementV1DocumentsError = PostApiDeviceManagementV1DocumentsErrors[keyof PostApiDeviceManagementV1DocumentsErrors];
+
+export type PostApiDeviceManagementV1DocumentsResponses = {
+  /**
+   * created document
+   */
+  201: {
+    meta?: TnsMetaMessage;
+    content?: TnsDocumentWithContent;
+  };
+};
+
+export type PostApiDeviceManagementV1DocumentsResponse = PostApiDeviceManagementV1DocumentsResponses[keyof PostApiDeviceManagementV1DocumentsResponses];
+
+export type PostApiDeviceManagementV1DocumentsIdFileData = {
+  body?: {
+    /**
+     * REQUIRED! binary data of the uploaded file
+     */
+    file: Blob | File;
+  };
+  path: {
+    /**
+     * Id of the document
+     */
+    id: number;
+  };
+  query?: never;
+  url: '/api/deviceManagement/v1/documents/{id}/file';
+};
+
+export type PostApiDeviceManagementV1DocumentsIdFileErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+  /**
+   * error response
+   */
+  404: {
+    error?: TnsException;
+  };
+};
+
+export type PostApiDeviceManagementV1DocumentsIdFileError = PostApiDeviceManagementV1DocumentsIdFileErrors[keyof PostApiDeviceManagementV1DocumentsIdFileErrors];
+
+export type PostApiDeviceManagementV1DocumentsIdFileResponses = {
+  /**
+   * document with file response
+   */
+  201: {
+    meta?: TnsMetaMessage;
+    content?: TnsDocumentWithFile;
+  };
+};
+
+export type PostApiDeviceManagementV1DocumentsIdFileResponse = PostApiDeviceManagementV1DocumentsIdFileResponses[keyof PostApiDeviceManagementV1DocumentsIdFileResponses];
 
 export type GetApiErpV1AccountingtypesData = {
   body?: never;
@@ -16399,7 +19262,7 @@ export type PostApiErpV1AccountingtypesData = {
     /**
      * Unique identifier of the accounting type.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the accounting type.
      */
@@ -16537,7 +19400,7 @@ export type PostApiErpV1CompaniesData = {
     /**
      * Unique identifier of the company
      */
-    id: number;
+    readonly id?: number;
     /**
      * Human-readable display identifier of the company
      */
@@ -16692,7 +19555,7 @@ export type PutApiErpV1CompaniesIdData = {
     /**
      * Unique identifier of the company
      */
-    id: number;
+    readonly id?: number;
     /**
      * Human-readable display identifier of the company
      */
@@ -16852,7 +19715,7 @@ export type PostApiErpV1CompanyCategoriesCategoryIdData = {
     /**
      * Unique identifier of the company type category
      */
-    id: number;
+    readonly id?: number;
     /**
      * Name of the category
      */
@@ -16866,7 +19729,7 @@ export type PostApiErpV1CompanyCategoriesCategoryIdData = {
   };
   path: {
     /**
-     * ID of the company category to create.
+     * Not evaluated on this route — send any value, e.g. `0`.
      */
     categoryId: string;
   };
@@ -16908,7 +19771,7 @@ export type PutApiErpV1CompanyCategoriesCategoryIdData = {
     /**
      * Unique identifier of the company type category
      */
-    id: number;
+    readonly id?: number;
     /**
      * Name of the category
      */
@@ -16964,7 +19827,7 @@ export type PostApiErpV1EmployeesData = {
     /**
      * Unique identifier of the employee.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the employee.
      */
@@ -17087,7 +19950,7 @@ export type PutApiErpV1EmployeesIdData = {
     /**
      * Unique identifier of the employee.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the employee.
      */
@@ -17210,7 +20073,7 @@ export type PostApiErpV1TypesData = {
     /**
      * Unique identifier of the company type
      */
-    id: number;
+    readonly id?: number;
     /**
      * Name of the company type
      */
@@ -17341,7 +20204,7 @@ export type PutApiErpV1TypesTypeIdData = {
     /**
      * Unique identifier of the company type
      */
-    id: number;
+    readonly id?: number;
     /**
      * Name of the company type
      */
@@ -17484,9 +20347,9 @@ export type PostApiSystemhausOneV1ExternalIdsData = {
      */
     linkId?: number;
     /**
-     * External program or system the assignment belongs to
+     * Not evaluated — the assignment is always stored for the connected ERP system, whatever is sent here.
      */
-    prog?: 'NONE';
+    readonly prog?: string;
     /**
      * Identifier of the object within the external system
      */
@@ -17535,9 +20398,7 @@ export type PutApiSystemhausOneV1ExternalIdsData = {
     /**
      * IDs of the linked objects to resolve external IDs for
      */
-    linkIds?: Array<{
-      [key: string]: unknown;
-    }>;
+    linkIds?: Array<number>;
   };
   path?: never;
   query?: never;
@@ -17656,7 +20517,7 @@ export type PostApiV1AccountingTypesData = {
     /**
      * Unique identifier of the accounting type.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the accounting type.
      */
@@ -17992,7 +20853,7 @@ export type PutApiV1AdditionalChargesResponses = {
   /**
    * Updated overtime additional charge.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -18095,7 +20956,7 @@ export type GetApiV1AdminPermissionPackagesResponses = {
       id?: number;
       name?: string;
       info?: string;
-      type?: number;
+      type?: 'TECHNICIAN' | 'FREELANCER' | 'RESTRICTED_USER' | 'CUSTOMER';
     }>;
   };
 };
@@ -18110,7 +20971,7 @@ export type PostApiV1AdminPermissionPackagesData = {
     /**
      * Unique identifier of the permission package
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the permission package
      */
@@ -18191,7 +21052,7 @@ export type PutApiV1AdminPermissionPackagesResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -18266,7 +21127,7 @@ export type GetApiV1AdminPermissionPackagesPackageIdResponses = {
       id?: number;
       name?: string;
       info?: string;
-      type?: number;
+      type?: 'TECHNICIAN' | 'FREELANCER' | 'RESTRICTED_USER' | 'CUSTOMER';
       permissions?: Array<number>;
     };
   };
@@ -18282,7 +21143,7 @@ export type PutApiV1AdminPermissionPackagesPackageIdData = {
     /**
      * Unique identifier of the permission package
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the permission package
      */
@@ -18327,7 +21188,7 @@ export type PutApiV1AdminPermissionPackagesPackageIdResponses = {
   /**
    * Updated permission package.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -18404,7 +21265,7 @@ export type PutApiV1AdminPermissionPackagesPackageIdCategoryCategoryIdResponses 
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -18626,7 +21487,7 @@ export type PostApiV1AdminTicketTypesData = {
     /**
      * Unique identifier of the ticket type.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the ticket type.
      */
@@ -18749,7 +21610,7 @@ export type PutApiV1AdminTicketTypesIdData = {
     /**
      * Unique identifier of the ticket type.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the ticket type.
      */
@@ -19117,7 +21978,7 @@ export type PutApiV1BankaccountsIdResponses = {
   /**
    * Resource updated.
    */
-  200: {
+  201: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -19176,25 +22037,25 @@ export type PostApiV1CallbacksIdStateData = {
    */
   body: {
     /**
-     * Identifier of the callback this log entry belongs to
+     * Identifier of the callback this log entry belongs to. Taken from the path parameter - a value sent here is ignored.
      */
-    callbackId?: number;
+    readonly callbackId?: number;
     /**
-     * Timestamp when the state change occurred
+     * Timestamp when the state change occurred. Set server-side - a value sent here is ignored.
      */
-    date?: number;
+    readonly date?: number;
     /**
      * State recorded for the callback
      */
-    state?: 'UNSEEN' | 'NEW' | 'NOBODY_ANSWERED' | 'BUSY' | 'NOT_PRESENT' | 'NEW_CALLBACK_REENTERED' | 'COMPLETED' | 'EXPECTED_CALLBACK' | 'EXPECTED_CALLBACK_COMPLETED';
+    state: 'UNSEEN' | 'NEW' | 'NOBODY_ANSWERED' | 'BUSY' | 'NOT_PRESENT' | 'NEW_CALLBACK_REENTERED' | 'COMPLETED' | 'EXPECTED_CALLBACK' | 'EXPECTED_CALLBACK_COMPLETED';
     /**
      * Free-text note describing the state change
      */
     infoText?: string;
     /**
-     * Identifier of the employee who triggered the state change
+     * Identifier of the employee who triggered the state change. Taken from the authenticated user - a value sent here is ignored.
      */
-    employeeId?: number;
+    readonly employeeId?: number;
   };
   path: {
     /**
@@ -19231,66 +22092,14 @@ export type PostApiV1CallbacksIdStateResponses = {
 
 export type PostApiV1CallbacksIdStateResponse = PostApiV1CallbacksIdStateResponses[keyof PostApiV1CallbacksIdStateResponses];
 
-export type PostApiV1CarsData = {
-  /**
-   * An object.
-   */
-  body: {
-    /**
-     * Unique identifier of the car
-     */
-    id?: number;
-    /**
-     * License plate of the car
-     */
-    numberPlate?: string;
-    /**
-     * Manufacturer of the car
-     */
-    manufacturer?: string;
-    /**
-     * Model or type designation of the car
-     */
-    type?: string;
-    /**
-     * Whether the car is currently active
-     */
-    active?: boolean;
-    /**
-     * Year of initial registration
-     */
-    initialRegistrationYear?: number;
-    /**
-     * Timestamp from which the car is active
-     */
-    activeFromDate?: number;
-    /**
-     * Timestamp until which the car is active
-     */
-    activeTillDate?: number;
-    /**
-     * Date of the next mandatory technical inspection
-     */
-    tuev?: number;
-    /**
-     * Fuel type used by the car
-     */
-    fuel?: 'DIESEL' | 'BENZINE' | 'SUPER_PLUS' | 'GAS';
-    /**
-     * Identifier of the insurance provider for the car
-     */
-    insuranceId?: number;
-    /**
-     * Free-text note about the car
-     */
-    note?: string;
-  };
+export type GetApiV1CarsData = {
+  body?: never;
   path?: never;
   query?: never;
   url: '/api/v1/cars';
 };
 
-export type PostApiV1CarsErrors = {
+export type GetApiV1CarsErrors = {
   /**
    * error response
    */
@@ -19299,57 +22108,25 @@ export type PostApiV1CarsErrors = {
   };
 };
 
-export type PostApiV1CarsError = PostApiV1CarsErrors[keyof PostApiV1CarsErrors];
+export type GetApiV1CarsError = GetApiV1CarsErrors[keyof GetApiV1CarsErrors];
 
-export type PostApiV1CarsResponses = {
+export type GetApiV1CarsResponses = {
   /**
-   * Resource created.
+   * Successful response.
    */
-  201: {
+  200: {
     meta?: TnsMetaMessage;
-    content?: {
+    content?: Array<{
       id?: number;
       numberPlate?: string;
       manufacturer?: string;
       type?: string;
       active?: boolean;
-    };
+    }>;
   };
 };
 
-export type PostApiV1CarsResponse = PostApiV1CarsResponses[keyof PostApiV1CarsResponses];
-
-export type DeleteApiV1CarsIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the car.
-     */
-    id: string;
-  };
-  query?: never;
-  url: '/api/v1/cars/{id}';
-};
-
-export type DeleteApiV1CarsIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type DeleteApiV1CarsIdError = DeleteApiV1CarsIdErrors[keyof DeleteApiV1CarsIdErrors];
-
-export type DeleteApiV1CarsIdResponses = {
-  /**
-   * Operation succeeded (no content).
-   */
-  204: void;
-};
-
-export type DeleteApiV1CarsIdResponse = DeleteApiV1CarsIdResponses[keyof DeleteApiV1CarsIdResponses];
+export type GetApiV1CarsResponse = GetApiV1CarsResponses[keyof GetApiV1CarsResponses];
 
 export type GetApiV1CarsIdData = {
   body?: never;
@@ -19388,78 +22165,11 @@ export type GetApiV1CarsIdResponses = {
 
 export type GetApiV1CarsIdResponse = GetApiV1CarsIdResponses[keyof GetApiV1CarsIdResponses];
 
-export type PutApiV1CarsIdData = {
-  /**
-   * JSON body with the updated entity fields.
-   */
-  body: {
-    [key: string]: unknown;
-  };
-  path: {
-    /**
-     * Id of the car.
-     */
-    id: string;
-  };
-  query?: never;
-  url: '/api/v1/cars/{id}';
-};
-
-export type PutApiV1CarsIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type PutApiV1CarsIdError = PutApiV1CarsIdErrors[keyof PutApiV1CarsIdErrors];
-
-export type PutApiV1CarsIdResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    content?: {
-      [key: string]: unknown;
-    };
-  };
-};
-
-export type PutApiV1CarsIdResponse = PutApiV1CarsIdResponses[keyof PutApiV1CarsIdResponses];
-
 export type PostApiV1ChecklistEventsData = {
   /**
-   * Request body.
+   * Event to create.
    */
-  body: {
-    /**
-     * Unique identifier of the checklist event
-     */
-    id: number;
-    /**
-     * Identifier of the checklist item this event belongs to
-     */
-    checklistItemId?: number;
-    /**
-     * Identifier of the multi-select option this event is attached to, if any
-     */
-    multiSelectOptionId?: number;
-    /**
-     * The kind of automated action this event performs
-     */
-    type?: 'JUMP_TO_FIELD' | 'SEND_EMAIL' | 'CHANGE_TICKET_EMPLOYEE_DEPARTMENT' | 'CHANGE_TICKET_DUE' | 'ADD_TICKET_COMMENT' | 'ADD_CHECKLIST' | 'CREATE_TICKET' | 'CHANGE_TICKET_STATUS' | 'END_PROCESS' | 'APPROVAL_PROCESS' | 'CHANGE_TICKET_PRICE' | 'LOCK_OR_UNLOCK_TICKET' | 'ADD_ROLE' | 'CHANGE_RESUBMISSION' | 'SET_SEPARATE_BILLING' | 'SET_UPPER_LIMIT' | 'SET_INSTALLATION_FEE' | 'CHANGE_TICKET_TYPE' | 'CREATE_PASSWORD' | 'CHANGE_VISIBILITY' | 'CHANGE_ASSIGNMENT' | 'CHANGE_TICKET_DEADLINE' | 'ADD_TAG' | 'CHANGE_ESTIMATED_TIME' | 'SET_TICKET_TEXTS' | 'ESCALATION_CAN_BE_TRIGGERED_AGAIN' | 'CHANGE_PRIORITY' | 'RESET_RULE' | 'LOCAL_TICKET_ADMIN_FLAG' | 'REMOVE_CHECKLIST' | 'SET_COMPANY_TYPES' | 'SUGGEST_TICKET_FOR_FEEDBACK' | 'REMOVE_ROLE' | 'CONTRACT_WORKFLOW' | 'CHANGE_REPAIR_TICKET' | 'CHANGE_EXT_TICKET_NR' | 'CHANGE_TICKET_ORDER_NR' | 'CHANGE_COST_CENTER' | 'CHANGE_CLEARANCE_MODE' | 'SEND_SERVICE_REPORT' | 'APPOINTMENT_WIZARD' | 'ASSIGN_TO_PROJECT' | 'WEBHOOK' | 'SET_REMITTER' | 'SET_NOTIFICATION' | 'CLEAR_SUPPORTS' | 'SET_TICKET_TEXTS_BY_AI' | 'CREATE_TICKET_SUMMARY' | 'CREATE_SUPPORT' | 'START_TICKET_TIMER';
-    /**
-     * Configuration value or payload for the event action
-     */
-    value?: string;
-    /**
-     * Ordering position of the event within its item
-     */
-    pos?: number;
-  };
+  body: ChecklistEventWritable;
   path?: never;
   query?: never;
   url: '/api/v1/checklistEvents';
@@ -19482,10 +22192,7 @@ export type PostApiV1ChecklistEventsResponses = {
    */
   201: {
     meta?: TnsMetaMessage;
-    /**
-     * The created checklist event.
-     */
-    content?: unknown;
+    content?: ChecklistEvent;
   };
 };
 
@@ -19566,74 +22273,11 @@ export type DeleteApiV1ChecklistEventsIdResponses = {
 
 export type DeleteApiV1ChecklistEventsIdResponse = DeleteApiV1ChecklistEventsIdResponses[keyof DeleteApiV1ChecklistEventsIdResponses];
 
-export type GetApiV1ChecklistEventsIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the checklist event.
-     */
-    id: number;
-  };
-  query?: never;
-  url: '/api/v1/checklistEvents/{id}';
-};
-
-export type GetApiV1ChecklistEventsIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1ChecklistEventsIdError = GetApiV1ChecklistEventsIdErrors[keyof GetApiV1ChecklistEventsIdErrors];
-
-export type GetApiV1ChecklistEventsIdResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * The requested checklist event.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1ChecklistEventsIdResponse = GetApiV1ChecklistEventsIdResponses[keyof GetApiV1ChecklistEventsIdResponses];
-
 export type PutApiV1ChecklistEventsIdData = {
   /**
-   * JSON request body — see the schema for the field shape.
+   * Event to store. `id` is taken from the path, a value sent here is ignored.
    */
-  body: {
-    /**
-     * Unique identifier of the checklist event
-     */
-    id?: number;
-    /**
-     * Identifier of the checklist item this event belongs to
-     */
-    checklistItemId?: number;
-    /**
-     * Identifier of the multi-select option this event is attached to, if any
-     */
-    multiSelectOptionId?: number;
-    /**
-     * The kind of automated action this event performs
-     */
-    type?: 'JUMP_TO_FIELD' | 'SEND_EMAIL' | 'CHANGE_TICKET_EMPLOYEE_DEPARTMENT' | 'CHANGE_TICKET_DUE' | 'ADD_TICKET_COMMENT' | 'ADD_CHECKLIST' | 'CREATE_TICKET' | 'CHANGE_TICKET_STATUS' | 'END_PROCESS' | 'APPROVAL_PROCESS' | 'CHANGE_TICKET_PRICE' | 'LOCK_OR_UNLOCK_TICKET' | 'ADD_ROLE' | 'CHANGE_RESUBMISSION' | 'SET_SEPARATE_BILLING' | 'SET_UPPER_LIMIT' | 'SET_INSTALLATION_FEE' | 'CHANGE_TICKET_TYPE' | 'CREATE_PASSWORD' | 'CHANGE_VISIBILITY' | 'CHANGE_ASSIGNMENT' | 'CHANGE_TICKET_DEADLINE' | 'ADD_TAG' | 'CHANGE_ESTIMATED_TIME' | 'SET_TICKET_TEXTS' | 'ESCALATION_CAN_BE_TRIGGERED_AGAIN' | 'CHANGE_PRIORITY' | 'RESET_RULE' | 'LOCAL_TICKET_ADMIN_FLAG' | 'REMOVE_CHECKLIST' | 'SET_COMPANY_TYPES' | 'SUGGEST_TICKET_FOR_FEEDBACK' | 'REMOVE_ROLE' | 'CONTRACT_WORKFLOW' | 'CHANGE_REPAIR_TICKET' | 'CHANGE_EXT_TICKET_NR' | 'CHANGE_TICKET_ORDER_NR' | 'CHANGE_COST_CENTER' | 'CHANGE_CLEARANCE_MODE' | 'SEND_SERVICE_REPORT' | 'APPOINTMENT_WIZARD' | 'ASSIGN_TO_PROJECT' | 'WEBHOOK' | 'SET_REMITTER' | 'SET_NOTIFICATION' | 'CLEAR_SUPPORTS' | 'SET_TICKET_TEXTS_BY_AI' | 'CREATE_TICKET_SUMMARY' | 'CREATE_SUPPORT' | 'START_TICKET_TIMER';
-    /**
-     * Configuration value or payload for the event action
-     */
-    value?: string;
-    /**
-     * Ordering position of the event within its item
-     */
-    pos?: number;
-  };
+  body: ChecklistEventWritable;
   path: {
     /**
      * Id of the checklist event.
@@ -19657,14 +22301,11 @@ export type PutApiV1ChecklistEventsIdError = PutApiV1ChecklistEventsIdErrors[key
 
 export type PutApiV1ChecklistEventsIdResponses = {
   /**
-   * Successful response.
+   * Checklist event updated.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
-    /**
-     * The updated checklist event.
-     */
-    content?: unknown;
+    content?: ChecklistEvent;
   };
 };
 
@@ -19676,13 +22317,13 @@ export type PostApiV1ChecklistItemsData = {
    */
   body: {
     /**
-     * Unique identifier of the checklist item
+     * Unique identifier of the checklist item. Generated server-side.
      */
-    id: number;
+    readonly id?: number;
     /**
      * Identifier of the checklist this item belongs to
      */
-    checklistId?: number;
+    checklistId: number;
     /**
      * The kind of checklist item (field, multi-select, included checklist, etc.)
      */
@@ -19749,13 +22390,13 @@ export type PostApiV1ChecklistItemsMultiSelectOptionsData = {
    */
   body: {
     /**
-     * Unique identifier of the multi-select option
+     * Unique identifier of the multi-select option. Generated server-side - sending a value here is rejected with PARAMETER_ID_HAS_TO_BE_NULL.
      */
-    multiSelectId: number;
+    readonly multiSelectId?: number;
     /**
      * Identifier of the checklist item this option belongs to
      */
-    checklistItemId?: number;
+    checklistItemId: number;
     /**
      * Ordering rank of the option within its item
      */
@@ -19883,7 +22524,7 @@ export type PutApiV1ChecklistItemsMultiSelectOptionsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated multi-select option.
@@ -19970,13 +22611,13 @@ export type PutApiV1ChecklistItemsIdData = {
    */
   body: {
     /**
-     * Unique identifier of the checklist item
+     * Unique identifier of the checklist item. Taken from the path parameter - a value sent here is ignored.
      */
-    id?: number;
+    readonly id?: number;
     /**
-     * Identifier of the checklist this item belongs to
+     * Identifier of the checklist this item belongs to. Can only be set when creating the item - on update a value sent here is ignored.
      */
-    checklistId?: number;
+    readonly checklistId?: number;
     /**
      * The kind of checklist item (field, multi-select, included checklist, etc.)
      */
@@ -20031,7 +22672,7 @@ export type PutApiV1ChecklistItemsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated checklist item.
@@ -20316,7 +22957,7 @@ export type PutApiV1ChecklistsIdData = {
     /**
      * Unique identifier of the checklist
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the checklist
      */
@@ -20371,7 +23012,7 @@ export type PutApiV1ChecklistsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Updated checklist template.
@@ -20731,7 +23372,7 @@ export type PutApiV1CompaniesRelationsStatusIdData = {
    * Updated payload.
    */
   body: {
-    id?: number;
+    readonly id?: number;
     name?: string;
   };
   path: {
@@ -20759,7 +23400,7 @@ export type PutApiV1CompaniesRelationsStatusIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       id?: number;
@@ -21037,7 +23678,7 @@ export type PutApiV1CompaniesIdData = {
   /**
    * The company master data to update.
    */
-  body: CompanyPost;
+  body: CompanyPostWritable;
   path: {
     /**
      * Id of the company to update.
@@ -21063,7 +23704,7 @@ export type PutApiV1CompaniesIdResponses = {
   /**
    * Resource updated.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: CompanyDetail;
   };
@@ -21242,7 +23883,7 @@ export type PostApiV1CompaniesIdCompanyIdData = {
     /**
      * Definition id this entry belongs to.
      */
-    id?: number;
+    readonly id?: number;
     name?: string;
     /**
      * DEFAULT, ASSIGNMENT, ASSIGNMENT_SERVICE, ASSIGNMENT_SERVICE_PASSWORD, ...
@@ -21685,7 +24326,7 @@ export type PostApiV1CurrenciesData = {
     /**
      * Unique identifier of the currency.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the currency.
      */
@@ -21964,13 +24605,33 @@ export type PutApiV1DomainsNslookupResponse = PutApiV1DomainsNslookupResponses[k
 
 export type PutApiV1DomainsPdfData = {
   /**
-   * An object describing which email accounts to include (company filter, text filter, pagination, etc.).
+   * Configuration describing which domains to include and how to sort them.
    */
   body: {
+    /**
+     * Restrict the list to this company (0 = no company filter).
+     */
     companyId?: number;
-    branchFilter?: string;
-    textFilter?: string;
-    types?: Array<number>;
+    /**
+     * How branch companies are treated.
+     */
+    branches?: 'COMPANY_ONLY' | 'BRANCHES_ONLY' | 'COMPANY_AND_BRANCHES' | 'SPECIFIC_BRANCH';
+    active?: 'ACTIVE_ONLY' | 'INACTIVE_ONLY' | 'ACTIVE_AND_INACTIVE';
+    searchText?: string;
+    sortField?: 'TITLE' | 'FQDN' | 'DESCRIPTION';
+    sortOrder?: 'ASC' | 'DESC';
+    /**
+     * Columns to render in the PDF. Empty means the default set.
+     */
+    columns?: Array<string>;
+    page?: number;
+    itemsPerPage?: number;
+    /**
+     * Receivers, used when the PDF is requested as an email instead of a download.
+     */
+    mail?: {
+      [key: string]: unknown;
+    };
   };
   path?: never;
   query?: never;
@@ -22005,13 +24666,33 @@ export type PutApiV1DomainsPdfResponse = PutApiV1DomainsPdfResponses[keyof PutAp
 
 export type PutApiV1EmailAccountsPdfData = {
   /**
-   * An object describing which email accounts to include (company filter, text filter, pagination, etc.).
+   * Configuration describing which email accounts to include and how to sort them.
    */
   body: {
+    /**
+     * Restrict the list to this company (0 = no company filter).
+     */
     companyId?: number;
-    branchFilter?: string;
-    textFilter?: string;
-    types?: Array<number>;
+    /**
+     * How branch companies are treated.
+     */
+    branches?: 'COMPANY_ONLY' | 'BRANCHES_ONLY' | 'COMPANY_AND_BRANCHES' | 'SPECIFIC_BRANCH';
+    active?: 'ACTIVE_ONLY' | 'INACTIVE_ONLY' | 'ACTIVE_AND_INACTIVE';
+    searchText?: string;
+    sortField?: 'TYPE_NAME' | 'DESCRIPTION' | 'ASSIGNEE' | 'LOGIN_NAME' | 'LOGIN_PASSWORD' | 'EMAIL_ACCOUNTS';
+    sortOrder?: 'ASC' | 'DESC';
+    /**
+     * Columns to render in the PDF. Empty means the default set.
+     */
+    columns?: Array<string>;
+    page?: number;
+    itemsPerPage?: number;
+    /**
+     * Receivers, used when the PDF is requested as an email instead of a download.
+     */
+    mail?: {
+      [key: string]: unknown;
+    };
   };
   path?: never;
   query?: never;
@@ -22085,7 +24766,7 @@ export type PostApiV1EmailSettingsData = {
     /**
      * Unique identifier of the mailbox configuration.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the mailbox configuration.
      */
@@ -22273,7 +24954,7 @@ export type PutApiV1EmailSettingsIdData = {
     /**
      * Unique identifier of the mailbox configuration.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the mailbox configuration.
      */
@@ -22344,7 +25025,7 @@ export type PutApiV1EmailSettingsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated object entry.
@@ -22611,18 +25292,48 @@ export type GetApiV1EmployeesDepartmentsError = GetApiV1EmployeesDepartmentsErro
 
 export type GetApiV1EmployeesDepartmentsResponses = {
   /**
-   * Selectable departments for sales-target views.
+   * List of departments.
    */
   200: {
     meta?: TnsMetaMessage;
-    content?: Array<{
-      id?: number;
-      name?: string;
-    }>;
+    content?: Array<Department>;
   };
 };
 
 export type GetApiV1EmployeesDepartmentsResponse = GetApiV1EmployeesDepartmentsResponses[keyof GetApiV1EmployeesDepartmentsResponses];
+
+export type PostApiV1EmployeesDepartmentsData = {
+  /**
+   * Department to create.
+   */
+  body: Department;
+  path?: never;
+  query?: never;
+  url: '/api/v1/employees/departments';
+};
+
+export type PostApiV1EmployeesDepartmentsErrors = {
+  /**
+   * error response
+   */
+  403: {
+    error?: TnsException;
+  };
+};
+
+export type PostApiV1EmployeesDepartmentsError = PostApiV1EmployeesDepartmentsErrors[keyof PostApiV1EmployeesDepartmentsErrors];
+
+export type PostApiV1EmployeesDepartmentsResponses = {
+  /**
+   * Department created.
+   */
+  201: {
+    meta?: TnsMetaMessage;
+    content?: Department;
+  };
+};
+
+export type PostApiV1EmployeesDepartmentsResponse = PostApiV1EmployeesDepartmentsResponses[keyof PostApiV1EmployeesDepartmentsResponses];
 
 export type DeleteApiV1EmployeesDepartmentsIdData = {
   body?: never;
@@ -22699,7 +25410,7 @@ export type PutApiV1EmployeesDepartmentsIdData = {
    * JSON body. An object.
    */
   body: {
-    id?: number;
+    readonly id?: number;
     name?: string;
   };
   path: {
@@ -22736,41 +25447,6 @@ export type PutApiV1EmployeesDepartmentsIdResponses = {
 };
 
 export type PutApiV1EmployeesDepartmentsIdResponse = PutApiV1EmployeesDepartmentsIdResponses[keyof PutApiV1EmployeesDepartmentsIdResponses];
-
-export type GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the company whose freelancers should be returned.
-     */
-    companyId: number;
-  };
-  query?: never;
-  url: '/api/v1/employees/freelancers/{companyId}';
-};
-
-export type GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdError = GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdErrors[keyof GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdErrors];
-
-export type GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdResponses = {
-  /**
-   * Resource(s) returned.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    content?: Array<EmployeeShort>;
-  };
-};
-
-export type GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdResponse = GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdResponses[keyof GetApiV1EmployeesApiV1EmployeesFreelancersCompanyIdResponses];
 
 export type GetApiV1EmployeesLinksData = {
   body?: never;
@@ -22816,11 +25492,11 @@ export type PostApiV1EmployeesLinksData = {
     /**
      * Unique identifier of the employee link entry
      */
-    id?: number;
+    readonly id?: number;
     /**
-     * Identifier of the employee this link belongs to
+     * Identifier of the employee this link belongs to. Set server-side from the authenticated user - a value sent here is ignored.
      */
-    employeeId: number;
+    readonly employeeId?: number;
     /**
      * Display heading shown for the link
      */
@@ -22908,11 +25584,11 @@ export type PutApiV1EmployeesLinksIdData = {
     /**
      * Unique identifier of the employee link entry
      */
-    id?: number;
+    readonly id?: number;
     /**
-     * Identifier of the employee this link belongs to
+     * Identifier of the employee this link belongs to. Set server-side from the authenticated user - a value sent here is ignored.
      */
-    employeeId: number;
+    readonly employeeId?: number;
     /**
      * Display heading shown for the link
      */
@@ -22951,7 +25627,7 @@ export type PutApiV1EmployeesLinksIdResponses = {
   /**
    * Updated employee link.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       id?: number;
@@ -23077,7 +25753,7 @@ export type GetApiV1EmployeesSalutationsResponses = {
       id?: number;
       shortText?: string;
       longText?: string;
-      gender?: number;
+      gender?: 'NOT_SET' | 'MALE' | 'FEMALE';
     }>;
   };
 };
@@ -23092,7 +25768,7 @@ export type PostApiV1EmployeesSalutationsData = {
     /**
      * Unique identifier of the salutation.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Short form of the salutation.
      */
@@ -23201,7 +25877,7 @@ export type GetApiV1EmployeesSalutationsIdResponses = {
       id?: number;
       shortText?: string;
       longText?: string;
-      gender?: number;
+      gender?: 'NOT_SET' | 'MALE' | 'FEMALE';
     };
   };
 };
@@ -23216,7 +25892,7 @@ export type PutApiV1EmployeesSalutationsIdData = {
     /**
      * Unique identifier of the salutation.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Short form of the salutation.
      */
@@ -23486,7 +26162,7 @@ export type PutApiV1EmployeesIdData = {
   /**
    * Partial or full `Employee` payload.
    */
-  body: Employee;
+  body: EmployeeWritable;
   path: {
     /**
      * Id of the employee to update.
@@ -23512,7 +26188,7 @@ export type PutApiV1EmployeesIdResponses = {
   /**
    * Updated employee record.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: Employee;
   };
@@ -23839,7 +26515,7 @@ export type PutApiV1EntityFilesIdData = {
     /**
      * Unique identifier of the stored file
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Original display name of the file
      */
@@ -23894,7 +26570,7 @@ export type PutApiV1EntityFilesIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated object row.
@@ -24101,7 +26777,7 @@ export type PostApiV1EscalationsData = {
     /**
      * Unique identifier of the escalation rule
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the escalation rule
      */
@@ -24278,7 +26954,7 @@ export type PostApiV1EscalationsCategoriesData = {
     /**
      * Unique identifier of the escalation category
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the escalation category
      */
@@ -24393,7 +27069,7 @@ export type PutApiV1EscalationsCategoriesCategoryIdData = {
     /**
      * Unique identifier of the escalation category
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the escalation category
      */
@@ -24424,7 +27100,7 @@ export type PutApiV1EscalationsCategoriesCategoryIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Updated escalation category.
@@ -24900,7 +27576,7 @@ export type PutApiV1EscalationsIdData = {
     /**
      * Unique identifier of the escalation rule
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the escalation rule
      */
@@ -24965,7 +27641,7 @@ export type PutApiV1EscalationsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Updated escalation rule.
@@ -25176,9 +27852,9 @@ export type PostApiV1FilesAndLinksData = {
    */
   body: {
     /**
-     * Unique identifier of the file or link entry
+     * Unique identifier of the file or link entry. Generated server-side.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Icon representing the entry
      */
@@ -25192,21 +27868,21 @@ export type PostApiV1FilesAndLinksData = {
      */
     parentId?: number;
     /**
-     * Timestamp when the entry was created
+     * Timestamp when the entry was created. Set server-side - a value sent here is overwritten.
      */
-    createdAt?: number;
+    readonly createdAt?: number;
     /**
-     * ID of the user who created the entry
+     * ID of the user who created the entry. Set server-side - a value sent here is overwritten.
      */
-    createdBy?: number;
+    readonly createdBy?: number;
     /**
-     * Timestamp when the entry was last modified
+     * Timestamp when the entry was last modified. Set server-side - a value sent here is overwritten.
      */
-    modifiedAt?: number;
+    readonly modifiedAt?: number;
     /**
-     * ID of the user who last modified the entry
+     * ID of the user who last modified the entry. Set server-side - a value sent here is overwritten.
      */
-    modifiedBy?: number;
+    readonly modifiedBy?: number;
   };
   path?: never;
   query?: never;
@@ -25428,7 +28104,7 @@ export type PutApiV1FilesAndLinksIdData = {
     /**
      * Unique identifier of the file/link entry.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display title of the link.
      */
@@ -25483,7 +28159,7 @@ export type PutApiV1FilesAndLinksIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The files-and-links entry (shape depends on the mounting path).
@@ -25659,7 +28335,7 @@ export type PutApiV1FilesAndLinksMediaIdData = {
     /**
      * Unique identifier of the file/link entry.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display title of the link.
      */
@@ -25714,7 +28390,7 @@ export type PutApiV1FilesAndLinksMediaIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The files-and-links entry (shape depends on the mounting path).
@@ -25769,9 +28445,9 @@ export type PostApiV1FilesAndLinksUrlData = {
    */
   body: {
     /**
-     * Unique identifier of the file/link entry.
+     * Unique identifier of the file/link entry. Generated server-side.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display title of the link.
      */
@@ -25785,21 +28461,21 @@ export type PostApiV1FilesAndLinksUrlData = {
      */
     assignedId?: number;
     /**
-     * Creation timestamp (epoch seconds).
+     * Creation timestamp (epoch seconds). Set server-side - a value sent here is overwritten.
      */
-    createdAt?: number;
+    readonly createdAt?: number;
     /**
-     * Identifier of the employee who created the entry.
+     * Identifier of the employee who created the entry. Set server-side - a value sent here is overwritten.
      */
-    createdBy?: number;
+    readonly createdBy?: number;
     /**
-     * Last modification timestamp (epoch seconds).
+     * Last modification timestamp (epoch seconds). Set server-side - a value sent here is overwritten.
      */
-    modifiedAt?: number;
+    readonly modifiedAt?: number;
     /**
-     * Identifier of the employee who last modified the entry.
+     * Identifier of the employee who last modified the entry. Set server-side - a value sent here is overwritten.
      */
-    modifiedBy?: number;
+    readonly modifiedBy?: number;
   };
   path?: never;
   query?: never;
@@ -25951,7 +28627,7 @@ export type PutApiV1FilesAndLinksUrlIdData = {
     /**
      * Unique identifier of the file/link entry.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display title of the link.
      */
@@ -26006,7 +28682,7 @@ export type PutApiV1FilesAndLinksUrlIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The files-and-links entry (shape depends on the mounting path).
@@ -26029,12 +28705,7 @@ export type GetApiV1GenericAssignmentsForSourceTypeSourceIdData = {
      */
     sourceId: number;
   };
-  query?: {
-    /**
-     * If true, also include inverted assignments.
-     */
-    withInverted?: boolean;
-  };
+  query?: never;
   url: '/api/v1/genericAssignments/for/{sourceType}/{sourceId}';
 };
 
@@ -26311,7 +28982,7 @@ export type PostApiV1GitCommitsData = {
     /**
      * Unique identifier of the commit record.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Commit hash.
      */
@@ -26886,7 +29557,7 @@ export type PutApiV1HolidaysYearMonthDayResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       day?: number;
@@ -27655,7 +30326,12 @@ export type GetApiV1LogoTypeIdResponses = {
 export type GetApiV1LogoTypeIdResponse = GetApiV1LogoTypeIdResponses[keyof GetApiV1LogoTypeIdResponses];
 
 export type PostApiV1LogoTypeIdData = {
-  body?: never;
+  body: {
+    /**
+     * The uploaded logo image (JPG/PNG/GIF, max. 2 MB).
+     */
+    logo: Blob | File;
+  };
   path: {
     /**
      * Logo type identifying the entity kind (e.g. EMPLOYEE, COMPANY).
@@ -27666,12 +30342,7 @@ export type PostApiV1LogoTypeIdData = {
      */
     id: number;
   };
-  query: {
-    /**
-     * The uploaded logo image (multipart form field).
-     */
-    file: string;
-  };
+  query?: never;
   url: '/api/v1/logo/{type}/{id}';
 };
 
@@ -27925,15 +30596,15 @@ export type PostApiV1MailsSendData = {
      */
     plainText?: string;
     /**
-     * Primary recipient address
+     * Primary recipient address. Several addresses can be given in one string, separated by comma or semicolon.
      */
     to?: string;
     /**
-     * Carbon copy recipient addresses
+     * Carbon copy recipient addresses. Several addresses can be given in one string, separated by comma or semicolon.
      */
     cc?: string;
     /**
-     * Blind carbon copy recipient addresses
+     * Blind carbon copy recipient addresses. Several addresses can be given in one string, separated by comma or semicolon.
      */
     bcc?: string;
     /**
@@ -28441,44 +31112,6 @@ export type GetApiV1OffersDuplicateOfferIdResponses = {
 
 export type GetApiV1OffersDuplicateOfferIdResponse = GetApiV1OffersDuplicateOfferIdResponses[keyof GetApiV1OffersDuplicateOfferIdResponses];
 
-export type GetApiV1OffersPdfOfferIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the offer
-     */
-    offerId: number;
-  };
-  query?: never;
-  url: '/api/v1/offers/pdf/{offerId}';
-};
-
-export type GetApiV1OffersPdfOfferIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1OffersPdfOfferIdError = GetApiV1OffersPdfOfferIdErrors[keyof GetApiV1OffersPdfOfferIdErrors];
-
-export type GetApiV1OffersPdfOfferIdResponses = {
-  /**
-   * Resource(s) returned.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * Placeholder response — endpoint is currently not implemented.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1OffersPdfOfferIdResponse = GetApiV1OffersPdfOfferIdResponses[keyof GetApiV1OffersPdfOfferIdResponses];
-
 export type GetApiV1OffersPdfOfferIdWorkflowIdData = {
   body?: never;
   path: {
@@ -28746,7 +31379,7 @@ export type PutApiV1OffersTemplatesTemplateIdFooterResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The offer template footer block.
@@ -28835,7 +31468,7 @@ export type PutApiV1OffersOfferIdData = {
     /**
      * Unique identifier of the offer
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the offer
      */
@@ -28906,7 +31539,7 @@ export type PutApiV1OffersOfferIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The offer including variables, materials and workflow info.
@@ -29057,7 +31690,7 @@ export type PostApiV1OvertimePayOutData = {
     /**
      * Unique identifier of the overtime request
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the employee submitting the overtime request
      */
@@ -29166,7 +31799,7 @@ export type PutApiV1OvertimePayOutIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Response payload.
@@ -29185,7 +31818,7 @@ export type PutApiV1OvertimeRequestIdData = {
     /**
      * Unique identifier of the overtime request
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the employee submitting the overtime request
      */
@@ -29256,7 +31889,7 @@ export type PutApiV1OvertimeRequestIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Response payload.
@@ -29317,7 +31950,7 @@ export type PostApiV1OvertimeSupportsData = {
     /**
      * Unique identifier of the overtime request
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the employee submitting the overtime request
      */
@@ -29748,7 +32381,7 @@ export type PostApiV1PasswordsData = {
     /**
      * Unique identifier of the stored password entry
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the password type/category
      */
@@ -29916,7 +32549,7 @@ export type PutApiV1PasswordsIdData = {
     /**
      * Unique identifier of the stored password entry
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the password type/category
      */
@@ -29967,7 +32600,7 @@ export type PutApiV1PasswordsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated password record.
@@ -30022,7 +32655,7 @@ export type PostApiV1PaymentMethodsData = {
     /**
      * Unique identifier of the payment method
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Number of months associated with the payment method
      */
@@ -30189,7 +32822,7 @@ export type GetApiV1PcsCompanyCompanyIdExportExcelData = {
   body?: never;
   path: {
     /**
-     * ID of the company whose peripheries are exported.
+     * ID of the company whose PCs are exported.
      */
     companyId: number;
   };
@@ -30527,7 +33160,7 @@ export type PutApiV1PermissionsPermissionPackagePermissionPackageIdToEmployeeIdR
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -30596,7 +33229,7 @@ export type PutApiV1PermissionsSetAllForEmployeeIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -30714,7 +33347,7 @@ export type PutApiV1PermissionsPermissionIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -31081,15 +33714,15 @@ export type PostApiV1PrioritiesData = {
     /**
      * Unique identifier of the priority.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the priority.
      */
     name?: string;
     /**
-     * Position used to order priorities in lists.
+     * Position used to order priorities in lists. On create the value is assigned server-side (appended at the end of the sequence) - a value sent here is ignored.
      */
-    sortOrder?: number;
+    readonly sortOrder?: number;
     /**
      * Whether the priority is currently active and selectable.
      */
@@ -31242,7 +33875,7 @@ export type PutApiV1PrioritiesIdData = {
     /**
      * Unique identifier of the priority.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the priority.
      */
@@ -31300,7 +33933,7 @@ export type PostApiV1ProjectsPhasesData = {
     /**
      * Unique identifier of the project phase.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the project this phase belongs to.
      */
@@ -31405,7 +34038,7 @@ export type PutApiV1ProjectsPhasesPhaseIdData = {
     /**
      * Unique identifier of the project phase.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the project this phase belongs to.
      */
@@ -31473,7 +34106,7 @@ export type PutApiV1ProjectsPhasesPhaseIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated project phase.
@@ -31724,7 +34357,7 @@ export type PostApiV1RecurrenceData = {
     /**
      * Unique identifier of the recurrence rule.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Type of the linked object the rule is attached to.
      */
@@ -31884,27 +34517,52 @@ export type PostApiV1RecurrenceExcludeData = {
     /**
      * Unique identifier of the recurrence exclusion.
      */
-    id?: number;
+    readonly id?: number;
     /**
-     * Identifier of the recurrence rule this exclusion applies to.
+     * Identifier of the recurrence rule this exclusion applies to. Either `ruleId` or the pair `ruleLinkTypeId`/`ruleLinkId` must be given.
      */
     ruleId?: number;
     /**
-     * Unix timestamp of the excluded occurrence.
+     * Alternative to `ruleId`: link type of the entity the recurrence rule is assigned to (e.g. `7` for a support). Only evaluated together with `ruleLinkId` and only if `ruleId` is not given.
+     */
+    ruleLinkTypeId?: number;
+    /**
+     * Alternative to `ruleId`: id of the entity the recurrence rule is assigned to (e.g. the id of the master support of a recurring appointment). Only evaluated together with `ruleLinkTypeId`.
+     */
+    ruleLinkId?: number;
+    /**
+     * Unix timestamp of the excluded occurrence. If no occurrence starts at exactly this time, the occurrence on the same day is used. Ignored if `sequenceId` is given.
      */
     timestamp?: number;
+    /**
+     * Alternative to `timestamp`: sequence number of the occurrence within the pre-calculated items of the rule. The timestamp is then determined from it.
+     */
+    sequenceId?: number;
     /**
      * Excluded occurrence date in ISO date format.
      */
     isoDateString?: string;
     /**
-     * Identifier of the employee who created the exclusion.
+     * Employee the exclusion applies to. `0` excludes the occurrence for all employees, otherwise only the occurrence of this employee is excluded.
      */
     employeeId?: number;
     /**
      * Timestamp indicating when the exclusion was indexed.
      */
     indexed?: number;
+    /**
+     * Optional. Entities that replace the excluded occurrence (e.g. a support that was created from this occurrence). `ruleId` and `excludeId` are set by the server. If no assignment is given, the occurrence is treated as deleted and SUPPORT_DELETED webhook events are triggered.
+     */
+    assignments?: Array<{
+      /**
+       * Link type of the replacing entity.
+       */
+      linkTypeId?: number;
+      /**
+       * Id of the replacing entity.
+       */
+      linkId?: number;
+    }>;
   };
   path?: never;
   query?: never;
@@ -32004,7 +34662,7 @@ export type PostApiV1RecurrenceReadableTextData = {
     /**
      * Unique identifier of the recurrence rule.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Type of the linked object the rule is attached to.
      */
@@ -32141,7 +34799,7 @@ export type PutApiV1RecurrenceRuleIdData = {
     /**
      * Unique identifier of the recurrence rule.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Type of the linked object the rule is attached to.
      */
@@ -32194,7 +34852,7 @@ export type PutApiV1RecurrenceRuleIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The recurrence rule with its decorated excludes, assignments and calculated occurrences.
@@ -32896,234 +35554,6 @@ export type PutApiV1SalesTargetSetResponses = {
 
 export type PutApiV1SalesTargetSetResponse = PutApiV1SalesTargetSetResponses[keyof PutApiV1SalesTargetSetResponses];
 
-export type GetApiV1SearchApiV1SearchDevicesData = {
-  body?: never;
-  path?: never;
-  query: {
-    /**
-     * Full-text search term used to match devices and personal computers.
-     */
-    query: string;
-  };
-  url: '/api/v1/search/devices';
-};
-
-export type GetApiV1SearchApiV1SearchDevicesErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchDevicesError = GetApiV1SearchApiV1SearchDevicesErrors[keyof GetApiV1SearchApiV1SearchDevicesErrors];
-
-export type GetApiV1SearchApiV1SearchDevicesResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * object containing matched devices and personal computers.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchDevicesResponse = GetApiV1SearchApiV1SearchDevicesResponses[keyof GetApiV1SearchApiV1SearchDevicesResponses];
-
-export type GetApiV1SearchApiV1SearchEmployeesData = {
-  body?: never;
-  path?: never;
-  query: {
-    /**
-     * Full-text search term used to match employees.
-     */
-    query: string;
-  };
-  url: '/api/v1/search/employees';
-};
-
-export type GetApiV1SearchApiV1SearchEmployeesErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchEmployeesError = GetApiV1SearchApiV1SearchEmployeesErrors[keyof GetApiV1SearchApiV1SearchEmployeesErrors];
-
-export type GetApiV1SearchApiV1SearchEmployeesResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * object with matched employees and callback hints.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchEmployeesResponse = GetApiV1SearchApiV1SearchEmployeesResponses[keyof GetApiV1SearchApiV1SearchEmployeesResponses];
-
-export type GetApiV1SearchApiV1SearchKnowledgebaseData = {
-  body?: never;
-  path?: never;
-  query: {
-    /**
-     * Full-text search term used to match knowledge-base entries.
-     */
-    query: string;
-  };
-  url: '/api/v1/search/knowledgebase';
-};
-
-export type GetApiV1SearchApiV1SearchKnowledgebaseErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchKnowledgebaseError = GetApiV1SearchApiV1SearchKnowledgebaseErrors[keyof GetApiV1SearchApiV1SearchKnowledgebaseErrors];
-
-export type GetApiV1SearchApiV1SearchKnowledgebaseResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * object with matched postings.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchKnowledgebaseResponse = GetApiV1SearchApiV1SearchKnowledgebaseResponses[keyof GetApiV1SearchApiV1SearchKnowledgebaseResponses];
-
-export type GetApiV1SearchApiV1SearchMailaccountsData = {
-  body?: never;
-  path?: never;
-  query: {
-    /**
-     * Full-text search term used to match mail accounts.
-     */
-    query: string;
-  };
-  url: '/api/v1/search/mailaccounts';
-};
-
-export type GetApiV1SearchApiV1SearchMailaccountsErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchMailaccountsError = GetApiV1SearchApiV1SearchMailaccountsErrors[keyof GetApiV1SearchApiV1SearchMailaccountsErrors];
-
-export type GetApiV1SearchApiV1SearchMailaccountsResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * List of matched mail-account entries.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchMailaccountsResponse = GetApiV1SearchApiV1SearchMailaccountsResponses[keyof GetApiV1SearchApiV1SearchMailaccountsResponses];
-
-export type GetApiV1SearchApiV1SearchSupportsData = {
-  body?: never;
-  path?: never;
-  query: {
-    /**
-     * Full-text search term used to match support time-tracking records.
-     */
-    query: string;
-  };
-  url: '/api/v1/search/supports';
-};
-
-export type GetApiV1SearchApiV1SearchSupportsErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchSupportsError = GetApiV1SearchApiV1SearchSupportsErrors[keyof GetApiV1SearchApiV1SearchSupportsErrors];
-
-export type GetApiV1SearchApiV1SearchSupportsResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * List of matched object time-tracking records.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchSupportsResponse = GetApiV1SearchApiV1SearchSupportsResponses[keyof GetApiV1SearchApiV1SearchSupportsResponses];
-
-export type GetApiV1SearchApiV1SearchTicketsData = {
-  body?: never;
-  path?: never;
-  query: {
-    /**
-     * Full-text search term used to match tickets.
-     */
-    query: string;
-  };
-  url: '/api/v1/search/tickets';
-};
-
-export type GetApiV1SearchApiV1SearchTicketsErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchTicketsError = GetApiV1SearchApiV1SearchTicketsErrors[keyof GetApiV1SearchApiV1SearchTicketsErrors];
-
-export type GetApiV1SearchApiV1SearchTicketsResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * List of matched object results.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1SearchApiV1SearchTicketsResponse = GetApiV1SearchApiV1SearchTicketsResponses[keyof GetApiV1SearchApiV1SearchTicketsResponses];
-
 export type GetApiV1SlaData = {
   body?: never;
   path?: never;
@@ -33165,7 +35595,7 @@ export type PostApiV1SlaData = {
     /**
      * Unique identifier of the service level agreement.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Name of the service level agreement.
      */
@@ -33411,7 +35841,7 @@ export type PutApiV1SlaConditionsIdData = {
     /**
      * Unique identifier of the SLA condition
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the SLA this condition belongs to
      */
@@ -33478,7 +35908,7 @@ export type PutApiV1SlaConditionsIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Updated SLA condition.
@@ -33671,7 +36101,7 @@ export type PutApiV1SlaIdData = {
     /**
      * Unique identifier of the task
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the maintenance contract the task belongs to
      */
@@ -33801,13 +36231,13 @@ export type PostApiV1SlaSlaIdConditionsData = {
    */
   body: {
     /**
-     * Unique identifier of the SLA condition
+     * Unique identifier of the SLA condition. Generated server-side.
      */
-    id?: number;
+    readonly id?: number;
     /**
-     * Identifier of the SLA this condition belongs to
+     * Identifier of the SLA this condition belongs to. Taken from the path parameter.
      */
-    slaId?: number;
+    readonly slaId?: number;
     /**
      * Reaction time in hours
      */
@@ -34790,7 +37220,7 @@ export type PutApiV1SupportRulesIdResponses = {
   /**
    * Updated support rule.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     content?: {
       [key: string]: unknown;
@@ -35001,11 +37431,9 @@ export type PutApiV1SupportsListPropertiesData = {
    */
   body: {
     /**
-     * List of configured column or field definitions for the support view
+     * Which filter-form field definitions to return
      */
-    fields?: Array<{
-      [key: string]: unknown;
-    }>;
+    fields?: Array<'TIMEFRAME' | 'SUPPORT_LOCATIONS' | 'SUPPORT_ICON_TYPES' | 'EMPLOYEES' | 'COMPANY_CATEGORIES' | 'DISCOUNTED_SUPPORTS' | 'NOT_CHARGED_REASONS' | 'DEPARTMENTS' | 'TICKET_TYPES' | 'TICKET_PHASES' | 'TICKETS' | 'PLANNING_TYPES' | 'COMPANIES' | 'OPEN_TICKETS' | 'IMPORT_TYPES' | 'TASK_FILTER' | 'CONTRACTS' | 'CARS' | 'SUPPORT_TYPES' | 'BOOKED_FILTER' | 'COSTCENTERS' | 'INTERNAL' | 'OWN_COMPANY' | 'CONSULTATION_PRESENT' | 'PROJECT_IDS' | 'SUPPORT_TAGS' | 'SUPPORT_TAGS_LOGIC_OPERATOR' | 'GROUPINGS' | 'PAGING'>;
     /**
      * Context in which the support configuration is applied
      */
@@ -35320,7 +37748,7 @@ export type PostApiV1SupportsSplitData = {
   /**
    * The support to be analysed. Only the time-related fields are required.
    */
-  body: TnsSupport;
+  body: TnsSupportWritable;
   path?: never;
   query?: never;
   url: '/api/v1/supports/split';
@@ -35767,7 +38195,9 @@ export type GetApiV1SystemhausOneInvoicesData = {
   path?: never;
   query?: {
     /**
-     * Customer number whose invoices are returned.
+     * SAP `CardCode` of the customer whose documents are returned. Effectively mandatory — the
+     * underlying query matches this value exactly, so leaving it empty yields an empty list.
+     *
      */
     customer?: string;
   };
@@ -35791,10 +38221,7 @@ export type GetApiV1SystemhausOneInvoicesResponses = {
    */
   200: {
     meta?: TnsMetaMessage;
-    /**
-     * Response payload.
-     */
-    content?: unknown;
+    content?: Array<SapOneInvoice>;
   };
 };
 
@@ -35945,7 +38372,7 @@ export type PostApiV1TasksData = {
     /**
      * Unique identifier of the task
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the maintenance contract the task belongs to
      */
@@ -36115,137 +38542,6 @@ export type PutApiV1TasksResponses = {
 
 export type PutApiV1TasksResponse = PutApiV1TasksResponses[keyof PutApiV1TasksResponses];
 
-export type GetApiV1TasksSeriesData = {
-  body?: never;
-  path?: never;
-  query?: {
-    /**
-     * (optional) id of the contract task whose series to fetch.
-     */
-    taskId?: number;
-    /**
-     * (optional) support id used to resolve the task series.
-     */
-    supportId?: number;
-    /**
-     * (optional) linkTypeId of the related entity (e.g. 11 = ticket).
-     */
-    linkTypeId?: number;
-    /**
-     * (optional) id of the linked entity.
-     */
-    linkId?: number;
-  };
-  url: '/api/v1/tasks/series';
-};
-
-export type GetApiV1TasksSeriesErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1TasksSeriesError = GetApiV1TasksSeriesErrors[keyof GetApiV1TasksSeriesErrors];
-
-export type GetApiV1TasksSeriesResponses = {
-  /**
-   * Resource(s) returned.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * Task-series recurrence definition.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1TasksSeriesResponse = GetApiV1TasksSeriesResponses[keyof GetApiV1TasksSeriesResponses];
-
-export type PostApiV1TasksSeriesData = {
-  /**
-   * JSON request body — see the example for the field shape.
-   */
-  body: {
-    /**
-     * Identifier of the task this recurrence series belongs to
-     */
-    taskId?: number;
-    /**
-     * Identifier of the associated support entry
-     */
-    supportId?: number;
-    /**
-     * Type identifier of the linked entity
-     */
-    linkTypeId?: number;
-    /**
-     * Identifier of the linked entity
-     */
-    linkId?: number;
-    /**
-     * Overall recurrence pattern of the series
-     */
-    seriesType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'INDIVIDUALLY';
-    /**
-     * Sub-pattern used for daily recurrences
-     */
-    dailyType?: 'NONE' | 'EVERY_X_DAYS' | 'EVERY_WORKINGDAY' | 'EVERY_X_MINUTES_IN_TIMEFRAME';
-    /**
-     * Sub-pattern used for monthly recurrences
-     */
-    monthlyType?: 'NONE' | 'ON_DAY_EVERY_X_MONTH' | 'ON_COUNTED_WEEKDAY_EVERY_X_MONTH';
-    /**
-     * Sub-pattern used for yearly recurrences
-     */
-    yearlyType?: 'NONE' | 'ON_DAY_OF_MONTH_EVERY_X_YEARS' | 'ON_COUNTED_WEEKDAY_OF_MONTH_EVERY_X_YEARS';
-    /**
-     * Date of the first execution as a unix timestamp
-     */
-    firstExecutionDate?: number;
-    /**
-     * Date of the next scheduled execution as a unix timestamp
-     */
-    nextExecutionDate?: number;
-    /**
-     * Date after which the series stops recurring as a unix timestamp
-     */
-    expireDate?: number;
-  };
-  path?: never;
-  query?: never;
-  url: '/api/v1/tasks/series';
-};
-
-export type PostApiV1TasksSeriesErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type PostApiV1TasksSeriesError = PostApiV1TasksSeriesErrors[keyof PostApiV1TasksSeriesErrors];
-
-export type PostApiV1TasksSeriesResponses = {
-  /**
-   * Resource(s) returned.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * Persisted task-series recurrence definition.
-     */
-    content?: unknown;
-  };
-};
-
-export type PostApiV1TasksSeriesResponse = PostApiV1TasksSeriesResponses[keyof PostApiV1TasksSeriesResponses];
-
 export type PostApiV1TasksSeriesNextData = {
   /**
    * JSON request body — see the example for the field shape.
@@ -36410,7 +38706,7 @@ export type PutApiV1TasksIdData = {
     /**
      * Unique identifier of the task
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the maintenance contract the task belongs to
      */
@@ -37405,44 +39701,6 @@ export type GetApiV1TemplatesPendingImportsTypeResponses = {
 
 export type GetApiV1TemplatesPendingImportsTypeResponse = GetApiV1TemplatesPendingImportsTypeResponses[keyof GetApiV1TemplatesPendingImportsTypeResponses];
 
-export type GetApiV1TemplatesSupportProfileConvertIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the legacy support template to convert.
-     */
-    id: number;
-  };
-  query?: never;
-  url: '/api/v1/templates/supportProfileConvert/{id}';
-};
-
-export type GetApiV1TemplatesSupportProfileConvertIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1TemplatesSupportProfileConvertIdError = GetApiV1TemplatesSupportProfileConvertIdErrors[keyof GetApiV1TemplatesSupportProfileConvertIdErrors];
-
-export type GetApiV1TemplatesSupportProfileConvertIdResponses = {
-  /**
-   * Resource(s) returned.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * The converted object.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1TemplatesSupportProfileConvertIdResponse = GetApiV1TemplatesSupportProfileConvertIdResponses[keyof GetApiV1TemplatesSupportProfileConvertIdResponses];
-
 export type GetApiV1TemplatesTypeTemplateTypeData = {
   body?: never;
   path: {
@@ -38071,7 +40329,7 @@ export type PutApiV1TicketBoardPanelPanelIdFiltersResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The created/updated object row.
@@ -38629,7 +40887,7 @@ export type PostApiV1TicketsPinnedData = {
     /**
      * Unique identifier of the pinned entry
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the ticket the entry is pinned to
      */
@@ -38714,7 +40972,7 @@ export type PutApiV1TicketsPinnedIdData = {
     /**
      * Unique identifier of the pinned entry
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Identifier of the ticket the entry is pinned to
      */
@@ -38753,7 +41011,7 @@ export type PutApiV1TicketsPinnedIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * The updated pin record.
@@ -38878,7 +41136,7 @@ export type PutApiV1TicketsProjectsTicketIdResponses = {
   /**
    * Successful response.
    */
-  200: {
+  202: {
     meta?: TnsMetaMessage;
     /**
      * Identity fields of the updated ticket.
@@ -39419,15 +41677,15 @@ export type PostApiV1TicketsTicketIdMailsData = {
    */
   body: {
     /**
-     * Primary recipient email address
+     * Primary recipient email address. Several addresses can be given in one string, separated by comma or semicolon.
      */
     to?: string;
     /**
-     * Carbon copy recipient email addresses
+     * Carbon copy recipient email addresses. Several addresses can be given in one string, separated by comma or semicolon.
      */
     cc?: string;
     /**
-     * Blind carbon copy recipient email addresses
+     * Blind carbon copy recipient email addresses. Several addresses can be given in one string, separated by comma or semicolon.
      */
     bcc?: string;
     /**
@@ -39556,29 +41814,29 @@ export type PutApiV1TicketsTicketIdMailsMailIdAttachmentData = {
    */
   body: {
     /**
-     * Identifier of the mail this attachment belongs to.
-     */
-    mailId: number;
-    /**
-     * Original file name of the attachment.
+     * Original file name of the attachment. The only body field that is evaluated - the attachment is resolved by mail id (from the path) plus this name.
      */
     fileName: string;
     /**
-     * Name under which the attachment is stored internally.
+     * Identifier of the mail this attachment belongs to. Taken from the path parameter - a value sent here is ignored.
      */
-    storedFilename?: string;
+    readonly mailId?: number;
     /**
-     * File extension of the attachment.
+     * Name under which the attachment is stored internally. Part of the attachment object, ignored on this request.
      */
-    extension?: string;
+    readonly storedFilename?: string;
     /**
-     * Content identifier used to reference the attachment inline in the mail body.
+     * File extension of the attachment. Part of the attachment object, ignored on this request.
      */
-    cid?: string;
+    readonly extension?: string;
     /**
-     * Storage folder where the attachment file resides.
+     * Content identifier used to reference the attachment inline in the mail body. Part of the attachment object, ignored on this request.
      */
-    folder?: string;
+    readonly cid?: string;
+    /**
+     * Storage folder where the attachment file resides. Part of the attachment object, ignored on this request.
+     */
+    readonly folder?: string;
   };
   path: {
     /**
@@ -39973,48 +42231,6 @@ export type PutApiV1TimelineResponses = {
 };
 
 export type PutApiV1TimelineResponse = PutApiV1TimelineResponses[keyof PutApiV1TimelineResponses];
-
-export type GetApiV1TimelineOutlookSyncData = {
-  body?: never;
-  path?: never;
-  query?: {
-    /**
-     * Start of the sync window as a unix timestamp in seconds.
-     */
-    from?: number;
-    /**
-     * End of the sync window as a unix timestamp in seconds.
-     */
-    to?: number;
-  };
-  url: '/api/v1/timeline/outlookSync';
-};
-
-export type GetApiV1TimelineOutlookSyncErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1TimelineOutlookSyncError = GetApiV1TimelineOutlookSyncErrors[keyof GetApiV1TimelineOutlookSyncErrors];
-
-export type GetApiV1TimelineOutlookSyncResponses = {
-  /**
-   * Successful response.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * Outlook sync result with counts of created, updated and removed calendar entries.
-     */
-    content?: unknown;
-  };
-};
-
-export type GetApiV1TimelineOutlookSyncResponse = GetApiV1TimelineOutlookSyncResponses[keyof GetApiV1TimelineOutlookSyncResponses];
 
 export type GetApiV1TimersAllTechniciansData = {
   body?: never;
@@ -41262,9 +43478,9 @@ export type PutApiV1VacationRequestsPlanningAdditionalTypesIdData = {
    */
   body: {
     /**
-     * Unique identifier of the planning additional type
+     * Unique identifier of the planning additional type. Taken from the path parameter - a value sent here is ignored.
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the additional type
      */
@@ -41453,83 +43669,6 @@ export type GetApiV1VacationRequestsIdPdfResponses = {
 
 export type GetApiV1VacationRequestsIdPdfResponse = GetApiV1VacationRequestsIdPdfResponses[keyof GetApiV1VacationRequestsIdPdfResponses];
 
-export type GetApiV1VouchersIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the voucher.
-     */
-    id: number;
-  };
-  query?: never;
-  url: '/api/v1/vouchers/{id}';
-};
-
-export type GetApiV1VouchersIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type GetApiV1VouchersIdError = GetApiV1VouchersIdErrors[keyof GetApiV1VouchersIdErrors];
-
-export type GetApiV1VouchersIdResponses = {
-  /**
-   * Resource(s) returned.
-   */
-  200: {
-    meta?: TnsMetaMessage;
-    /**
-     * The requested object.
-     */
-    content?: {
-      [key: string]: unknown;
-    };
-  };
-};
-
-export type GetApiV1VouchersIdResponse = GetApiV1VouchersIdResponses[keyof GetApiV1VouchersIdResponses];
-
-export type PostApiV1VouchersIdData = {
-  body?: never;
-  path: {
-    /**
-     * Id of the voucher.
-     */
-    id: number;
-  };
-  query?: never;
-  url: '/api/v1/vouchers/{id}';
-};
-
-export type PostApiV1VouchersIdErrors = {
-  /**
-   * error response
-   */
-  403: {
-    error?: TnsException;
-  };
-};
-
-export type PostApiV1VouchersIdError = PostApiV1VouchersIdErrors[keyof PostApiV1VouchersIdErrors];
-
-export type PostApiV1VouchersIdResponses = {
-  /**
-   * Resource updated.
-   */
-  202: {
-    meta?: TnsMetaMessage;
-    content?: {
-      [key: string]: unknown;
-    };
-  };
-};
-
-export type PostApiV1VouchersIdResponse = PostApiV1VouchersIdResponses[keyof PostApiV1VouchersIdResponses];
-
 export type GetApiV1WorkflowContractsConfigsContractTypeData = {
   body?: never;
   path: {
@@ -41663,7 +43802,7 @@ export type PostApiV1WorkingHoursClientData = {
     /**
      * Unique identifier of the working hours model
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the working hours model
      */
@@ -41725,7 +43864,7 @@ export type PutApiV1WorkingHoursClientData = {
     /**
      * Unique identifier of the working hours model
      */
-    id?: number;
+    readonly id?: number;
     /**
      * Display name of the working hours model
      */
